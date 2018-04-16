@@ -1,0 +1,41 @@
+buildscript {
+  ext.kotlinVersion = '1.2.31'
+  ext.shadowVersion = '2.0.3'
+  ext.bintrayVersion = '1.7.3'
+  ext.mavenVersion = '3.5.3'
+
+  repositories {
+    jcenter()
+  }
+
+  dependencies {
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+  }
+}
+
+apply plugin: 'kotlin'
+
+// Don't apply the plugin for buildSrc.
+if (project.path != ":") {
+  apply plugin: 'io.michaelrocks.pablo'
+  pablo.artifactName = 'pablo'
+} else {
+  jar.archiveName = 'pablo-bootstrap.jar'
+}
+
+targetCompatibility = JavaVersion.VERSION_1_6
+sourceCompatibility = JavaVersion.VERSION_1_6
+
+repositories {
+  jcenter()
+  gradlePluginPortal()
+}
+
+dependencies {
+  compileOnly gradleApi()
+
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+  implementation "com.github.jengelman.gradle.plugins:shadow:$shadowVersion"
+  implementation "com.jfrog.bintray.gradle:gradle-bintray-plugin:$bintrayVersion"
+  implementation "org.apache.maven:maven:$mavenVersion"
+}

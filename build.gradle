@@ -1,0 +1,4 @@
+allprojects {
+  group = 'io.michaelrocks.pablo'
+  version = '1.0.0'
+}

@@ -1,0 +1,9 @@
+# Gradle files
+.gradle/
+build/
+
+# IntelliJ IDEA files
+.idea/
+
+# Gradle Wrapper
+!gradle/wrapper/gradle-wrapper.jar
