@@ -61,7 +61,9 @@ class PabloPlugin : Plugin<Project> {
               copyTransitiveDependencies()
               configureShadowJar(resolvedDependencies)
             }
-            configureBintrayPublishing(resolvedDependencies)
+
+            configureBintray()
+            configurePublications(resolvedDependencies)
           }
         }
     )
@@ -162,18 +164,10 @@ class PabloPlugin : Plugin<Project> {
     }
   }
 
-  private fun configureBintrayPublishing(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
-    val hasCredentials = project.hasProperty(BINTRAY_USER_PROPERTY) && project.hasProperty(BINTRAY_KEY_PROPERTY)
-    if (hasCredentials) {
-      configureBintray()
-      configurePublications(resolvedDependencies)
-    }
-  }
-
   private fun configureBintray() {
     project.extensions.getByType(BintrayExtension::class.java).also { bintray ->
-      bintray.user = project.property(BINTRAY_USER_PROPERTY)?.toString()
-      bintray.key = project.property(BINTRAY_KEY_PROPERTY)?.toString()
+      bintray.user = project.findProperty(BINTRAY_USER_PROPERTY)?.toString()
+      bintray.key = project.findProperty(BINTRAY_KEY_PROPERTY)?.toString()
 
       bintray.setPublications(PUBLICATION_NAME)
 
