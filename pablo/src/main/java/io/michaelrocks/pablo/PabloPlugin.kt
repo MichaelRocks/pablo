@@ -163,7 +163,7 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun configureBintrayPublishing(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
-    val hasCredentials = project.hasProperty("bintrayUser") && project.hasProperty("bintrayKey")
+    val hasCredentials = project.hasProperty(BINTRAY_USER_PROPERTY) && project.hasProperty(BINTRAY_KEY_PROPERTY)
     if (hasCredentials) {
       configureBintray()
       configurePublications(resolvedDependencies)
@@ -172,10 +172,10 @@ class PabloPlugin : Plugin<Project> {
 
   private fun configureBintray() {
     project.extensions.getByType(BintrayExtension::class.java).also { bintray ->
-      bintray.user = project.property("bintrayUser")?.toString()
-      bintray.key = project.property("bintrayKey")?.toString()
+      bintray.user = project.property(BINTRAY_USER_PROPERTY)?.toString()
+      bintray.key = project.property(BINTRAY_KEY_PROPERTY)?.toString()
 
-      bintray.setPublications("mavenJava")
+      bintray.setPublications(PUBLICATION_NAME)
 
       bintray.dryRun = readBooleanProperty("dryRun", false)
       bintray.publish = readBooleanProperty("publish", false)
@@ -199,7 +199,7 @@ class PabloPlugin : Plugin<Project> {
   private fun configurePublications(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
     val bintray = project.extensions.getByType(BintrayExtension::class.java)
     val publishing = project.extensions.getByType(PublishingExtension::class.java)
-    publishing.publications.create("mavenJava", MavenPublication::class.java) { publication ->
+    publishing.publications.create(PUBLICATION_NAME, MavenPublication::class.java) { publication ->
       publication.artifactId = bintray.pkg.name
       if (extension.repackage) {
         publication.artifact(project.tasks.getByName(SHADOW_JAR_TASK_NAME))
@@ -244,6 +244,10 @@ class PabloPlugin : Plugin<Project> {
   }
 
   companion object {
+    const val BINTRAY_USER_PROPERTY = "bintrayUser"
+    const val BINTRAY_KEY_PROPERTY = "bintrayKey"
+    const val PUBLICATION_NAME = "mavenJava"
+
     const val SHADOW_JAR_TASK_NAME = "shadowJar"
     const val SOURCES_JAR_TASK_NAME = "sourcesJar"
     const val JAVADOC_JAR_TASK_NAME = "javadocJar"
