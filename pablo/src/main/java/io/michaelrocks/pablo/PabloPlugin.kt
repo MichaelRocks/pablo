@@ -196,10 +196,13 @@ class PabloPlugin : Plugin<Project> {
     publishing.publications.create(PUBLICATION_NAME, MavenPublication::class.java) { publication ->
       publication.artifactId = bintray.pkg.name
       if (extension.repackage) {
-        publication.artifact(project.tasks.getByName(SHADOW_JAR_TASK_NAME))
+        publication.artifact(project.tasks.getByName(SHADOW_JAR_TASK_NAME)) { artifact ->
+          artifact.classifier = null
+        }
+      } else {
+        publication.artifact(project.tasks.getByName(JavaPlugin.JAR_TASK_NAME))
       }
 
-      publication.artifact(project.tasks.getByName(JavaPlugin.JAR_TASK_NAME))
       publication.artifact(project.tasks.getByName(SOURCES_JAR_TASK_NAME))
       publication.artifact(project.tasks.getByName(JAVADOC_JAR_TASK_NAME))
 
