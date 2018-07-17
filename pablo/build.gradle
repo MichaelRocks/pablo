@@ -1,6 +1,6 @@
 buildscript {
   ext.kotlinVersion = '1.2.51'
-  ext.shadowVersion = '2.0.3'
+  ext.shadowVersion = '2.0.4'
   ext.bintrayVersion = '1.8.0'
   ext.mavenVersion = '3.5.4'
 
