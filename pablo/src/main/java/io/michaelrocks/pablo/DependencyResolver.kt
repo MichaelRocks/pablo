@@ -25,7 +25,8 @@ import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.plugins.JavaPlugin
 
 class DependencyResolver private constructor(
-    private val project: Project
+    private val project: Project,
+    private val traverseRelocateDependencies: Boolean
 ) {
   private val mapping = buildDependencyNotationMapping()
   private val builder = DependencyResolutionResult.Builder()
@@ -37,14 +38,14 @@ class DependencyResolver private constructor(
   }
 
   private fun buildDependencyNotationMapping(project: Project, mapping: MutableMap<String, DependencyNotation>) {
-    project.plugins.findPlugin("io.michaelrocks.pablo")?.let { plugin ->
+    project.plugins.findPlugin("io.michaelrocks.pablo")?.also { plugin ->
       val group = project.group.toString()
       // Call the method via reflection to handle the case when two or more instances of the plugin are loaded using
       // different class loaders.
       val name = plugin.javaClass.getMethod("getArtifactName").invoke(plugin).toString()
       val version = project.version.toString()
       val notation = DependencyNotation(group, name, version)
-      mapping.put(project.path, notation)
+      mapping[project.path] = notation
     }
 
     project.subprojects.forEach { subproject ->
@@ -80,7 +81,9 @@ class DependencyResolver private constructor(
           val originalProjectDependencyNotation =
               DependencyNotation(project.group.toString(), project.name, project.version.toString())
           builder.addDependencyMapping(originalProjectDependencyNotation, projectDependencyNotation)
-          resolve(project)
+          if (traverseRelocateDependencies) {
+            resolve(project)
+          }
         }
       }
       is SelfResolvingDependency -> {
@@ -129,7 +132,7 @@ class DependencyResolver private constructor(
         val processedNotations = mutableSetOf<DependencyNotation>()
         val scopeToResolvedNotationsMap = mutableMapOf<Scope, List<DependencyNotation>>()
         for (scope in Scope.values()) {
-          scopeToNotationsMap[scope]?.let { dependencies ->
+          scopeToNotationsMap[scope]?.also { dependencies ->
             scopeToResolvedNotationsMap[scope] = dependencies.mapNotNull {
               val notation = it.copy(version = "")
               if (processedNotations.add(notation)) {
@@ -181,8 +184,8 @@ class DependencyResolver private constructor(
   }
 
   companion object {
-    fun resolve(project: Project): DependencyResolutionResult {
-      return DependencyResolver(project).resolve()
+    fun resolve(project: Project, traverseRelocateDependencies: Boolean): DependencyResolutionResult {
+      return DependencyResolver(project, traverseRelocateDependencies).resolve()
     }
   }
 }

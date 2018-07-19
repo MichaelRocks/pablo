@@ -56,7 +56,7 @@ class PabloPlugin : Plugin<Project> {
     project.gradle.addBuildListener(
         object : BuildAdapter() {
           override fun projectsEvaluated(gradle: Gradle) {
-            val resolvedDependencies = DependencyResolver.resolve(project)
+            val resolvedDependencies = DependencyResolver.resolve(project, extension.repackage)
             if (extension.repackage) {
               copyTransitiveDependencies()
               configureShadowJar(resolvedDependencies)
@@ -216,14 +216,20 @@ class PabloPlugin : Plugin<Project> {
 
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
     resolvedDependencies.scopeToNotationsMap.forEach { (scope, notations) ->
-      if (scope != DependencyResolver.Scope.RELOCATE) {
-        notations.forEach { addDependencyNode(it, scope.toMavenScope()) }
+      if (scope != DependencyResolver.Scope.RELOCATE || !extension.repackage) {
+        val mavenScope =
+            if (scope == DependencyResolver.Scope.RELOCATE) {
+              DependencyResolver.Scope.COMPILE.toMavenScope()
+            } else {
+              scope.toMavenScope()
+            }
+        notations.forEach { addDependencyNode(it, mavenScope) }
       }
     }
   }
 
   private fun Node.addDependencyNode(notation: DependencyResolver.DependencyNotation, scope: String) {
-    appendNode("dependency").let {
+    appendNode("dependency").also {
       it.appendNode("groupId", notation.group)
       it.appendNode("artifactId", notation.name)
       it.appendNode("version", notation.version)
