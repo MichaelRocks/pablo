@@ -90,6 +90,8 @@ class PabloPlugin : Plugin<Project> {
     val relocate = project.configurations.create(RELOCATE_CONFIGURATION_NAME)
     project.configurations.getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME).extendsFrom(relocate)
     project.configurations.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME).extendsFrom(relocate)
+    project.configurations.getByName(JavaPlugin.TEST_COMPILE_CLASSPATH_CONFIGURATION_NAME).extendsFrom(relocate)
+    project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME).extendsFrom(relocate)
   }
 
   private fun copyTransitiveDependencies() {
