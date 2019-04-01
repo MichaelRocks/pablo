@@ -1,3 +1,4 @@
 rootProject.name = 'pablo'
 
 include ':pablo'
+findProject(':pablo').name = 'library'
