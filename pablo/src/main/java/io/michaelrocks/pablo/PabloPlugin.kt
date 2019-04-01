@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Michael Rozumyanskiy
+ * Copyright 2019 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import org.gradle.api.specs.Spec
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.util.GradleVersion
 import java.util.Date
 
 class PabloPlugin : Plugin<Project> {
@@ -130,14 +131,14 @@ class PabloPlugin : Plugin<Project> {
     val sourcesJar = project.tasks.create(SOURCES_JAR_TASK_NAME, Jar::class.java) { task ->
       task.dependsOn(project.tasks.getByName(JavaPlugin.CLASSES_TASK_NAME))
       task.from(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).allSource)
-      task.classifier = SOURCES_CLASSIFIER
+      task.setArchiveClassifier(SOURCES_CLASSIFIER)
     }
 
     val javadocJar = project.tasks.create(JAVADOC_JAR_TASK_NAME, Jar::class.java) { task ->
       val javadoc = project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME) as Javadoc
       task.dependsOn(javadoc)
       task.from(javadoc.destinationDir)
-      task.classifier = JAVADOC_CLASSIFIER
+      task.setArchiveClassifier(JAVADOC_CLASSIFIER)
     }
 
     project.artifacts.add(Dependency.ARCHIVES_CONFIGURATION, sourcesJar)
@@ -153,7 +154,7 @@ class PabloPlugin : Plugin<Project> {
     val filter = shadowJar.dependencyFilter
     filter.include(resolvedDependencies.toIncludeSpec())
 
-    shadowJar.classifier = REPACK_CLASSIFIER
+    shadowJar.setArchiveClassifier(REPACK_CLASSIFIER)
   }
 
   private fun DependencyResolver.DependencyResolutionResult.toIncludeSpec(): Spec<ResolvedDependency> {
@@ -163,6 +164,15 @@ class PabloPlugin : Plugin<Project> {
           DependencyResolver.DependencyNotation(dependency.moduleGroup, dependency.moduleName, dependency.moduleVersion)
       val notation = dependencyToDependencyMap[originalNotation] ?: originalNotation
       notation in dependenciesToRelocate
+    }
+  }
+
+  @Suppress("Deprecation")
+  private fun Jar.setArchiveClassifier(classifier: String) {
+    if (GradleVersion.current() >= GRADLE_VERSION_5_1) {
+      archiveClassifier.set(classifier)
+    } else {
+      setClassifier(classifier)
     }
   }
 
@@ -261,5 +271,7 @@ class PabloPlugin : Plugin<Project> {
     const val SOURCES_CLASSIFIER = "sources"
     const val JAVADOC_CLASSIFIER = "javadoc"
     const val REPACK_CLASSIFIER = "repack"
+
+    private val GRADLE_VERSION_5_1 = GradleVersion.version("5.1")
   }
 }
