@@ -21,7 +21,7 @@ if (project.path != ":") {
   apply plugin: 'io.michaelrocks.pablo'
   pablo.artifactName = 'pablo'
 } else {
-  jar.archiveName = 'pablo-bootstrap.jar'
+  jar.archiveFileName = 'pablo-bootstrap.jar'
 }
 
 targetCompatibility = javaVersion
