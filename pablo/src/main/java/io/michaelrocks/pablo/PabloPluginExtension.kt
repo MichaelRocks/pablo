@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Michael Rozumyanskiy
+ * Copyright 2020 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,5 +19,4 @@ package io.michaelrocks.pablo
 open class PabloPluginExtension {
   var repository: String? = null
   var artifactName: String? = null
-  var repackage: Boolean = false
 }

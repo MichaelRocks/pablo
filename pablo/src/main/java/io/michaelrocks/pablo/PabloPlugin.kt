@@ -196,7 +196,7 @@ class PabloPlugin : Plugin<Project> {
       publication.pom.withXml { xml ->
         val root = xml.asNode()
         val dependenciesNode = root.appendNode("dependencies")
-        val resolvedDependencies = DependencyResolver.resolve(project, extension.repackage)
+        val resolvedDependencies = DependencyResolver.resolve(project)
         dependenciesNode.addDependenciesToPom(resolvedDependencies)
       }
     }
@@ -204,7 +204,7 @@ class PabloPlugin : Plugin<Project> {
 
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
     resolvedDependencies.scopeToModuleIdMap.forEach { (scope, notations) ->
-      if (scope != DependencyResolver.Scope.RELOCATE || !extension.repackage) {
+      if (scope != DependencyResolver.Scope.RELOCATE) {
         val mavenScope =
             if (scope == DependencyResolver.Scope.RELOCATE) {
               DependencyResolver.Scope.COMPILE.toMavenScope()

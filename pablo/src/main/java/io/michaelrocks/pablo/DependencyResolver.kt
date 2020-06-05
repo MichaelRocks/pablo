@@ -27,8 +27,7 @@ import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.plugins.JavaPlugin
 
 class DependencyResolver private constructor(
-  private val project: Project,
-  private val traverseRelocateDependencies: Boolean
+  private val project: Project
 ) {
 
   private val mapping = buildModuleIdMapping()
@@ -83,9 +82,7 @@ class DependencyResolver private constructor(
         if (scope == Scope.RELOCATE) {
           val originalProjectId = SimpleModuleVersionIdentifier(project.group.toString(), project.name, project.version.toString())
           builder.addModuleIdMapping(originalProjectId, projectId)
-          if (traverseRelocateDependencies) {
-            resolve(project)
-          }
+          resolve(project)
         }
       }
 
@@ -208,8 +205,8 @@ class DependencyResolver private constructor(
   }
 
   companion object {
-    fun resolve(project: Project, traverseRelocateDependencies: Boolean): DependencyResolutionResult {
-      return DependencyResolver(project, traverseRelocateDependencies).resolve()
+    fun resolve(project: Project): DependencyResolutionResult {
+      return DependencyResolver(project).resolve()
     }
   }
 }
