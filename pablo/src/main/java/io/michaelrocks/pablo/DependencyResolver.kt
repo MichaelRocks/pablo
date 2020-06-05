@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Michael Rozumyanskiy
+ * Copyright 2020 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,36 +20,39 @@ import org.apache.maven.artifact.versioning.DefaultArtifactVersion
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.DependencyConstraint
+import org.gradle.api.artifacts.ModuleIdentifier
+import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.plugins.JavaPlugin
 
 class DependencyResolver private constructor(
-    private val project: Project,
-    private val traverseRelocateDependencies: Boolean
+  private val project: Project,
+  private val traverseRelocateDependencies: Boolean
 ) {
-  private val mapping = buildDependencyNotationMapping()
+
+  private val mapping = buildModuleIdMapping()
   private val builder = DependencyResolutionResult.Builder()
 
-  private fun buildDependencyNotationMapping(): Map<String, DependencyNotation> {
-    val mapping = HashMap<String, DependencyNotation>()
-    buildDependencyNotationMapping(project.rootProject, mapping)
+  private fun buildModuleIdMapping(): Map<String, ModuleVersionIdentifier> {
+    val mapping = HashMap<String, ModuleVersionIdentifier>()
+    buildModuleIdMapping(project.rootProject, mapping)
     return mapping
   }
 
-  private fun buildDependencyNotationMapping(project: Project, mapping: MutableMap<String, DependencyNotation>) {
+  private fun buildModuleIdMapping(project: Project, mapping: MutableMap<String, ModuleVersionIdentifier>) {
     project.plugins.findPlugin("io.michaelrocks.pablo")?.also { plugin ->
       val group = project.group.toString()
       // Call the method via reflection to handle the case when two or more instances of the plugin are loaded using
       // different class loaders.
       val name = plugin.javaClass.getMethod("getArtifactName").invoke(plugin).toString()
       val version = project.version.toString()
-      val notation = DependencyNotation(group, name, version)
-      mapping[project.path] = notation
+      val id = SimpleModuleVersionIdentifier(group, name, version)
+      mapping[project.path] = id
     }
 
     project.subprojects.forEach { subproject ->
-      buildDependencyNotationMapping(subproject, mapping)
+      buildModuleIdMapping(subproject, mapping)
     }
   }
 
@@ -72,71 +75,73 @@ class DependencyResolver private constructor(
     when (dependency) {
       is ProjectDependency -> {
         val project = dependency.dependencyProject
-        val projectDependencyNotation = checkNotNull(mapping[project.path]) {
+        val projectId = checkNotNull(mapping[project.path]) {
           "Cannot find project ${project.path} in ${this.project.path}: $mapping"
         }
 
-        builder.addDependencyNotation(scope, projectDependencyNotation)
+        builder.addModuleId(scope, projectId)
         if (scope == Scope.RELOCATE) {
-          val originalProjectDependencyNotation =
-              DependencyNotation(project.group.toString(), project.name, project.version.toString())
-          builder.addDependencyMapping(originalProjectDependencyNotation, projectDependencyNotation)
+          val originalProjectId = SimpleModuleVersionIdentifier(project.group.toString(), project.name, project.version.toString())
+          builder.addModuleIdMapping(originalProjectId, projectId)
           if (traverseRelocateDependencies) {
             resolve(project)
           }
         }
       }
+
       is SelfResolvingDependency -> {
         // Do nothing.
       }
+
       else -> {
-        val notation = DependencyNotation(dependency.group!!, dependency.name, dependency.version!!)
-        builder.addDependencyNotation(scope, notation)
+        val moduleId = SimpleModuleVersionIdentifier(dependency.group!!, dependency.name, dependency.version!!)
+        builder.addModuleId(scope, moduleId)
       }
     }
   }
 
   private fun resolve(dependencyConstraint: DependencyConstraint, scope: Scope) {
-    val notation = DependencyNotation(dependencyConstraint.group, dependencyConstraint.name, dependencyConstraint.version ?: "")
-    builder.addDependencyNotation(scope, notation)
+    val moduleId = SimpleModuleVersionIdentifier(dependencyConstraint.group, dependencyConstraint.name, dependencyConstraint.version ?: "")
+    builder.addModuleId(scope, moduleId)
   }
 
   data class DependencyResolutionResult(
-      val scopeToNotationsMap: Map<Scope, List<DependencyNotation>>,
-      val dependencyToDependencyMap: Map<DependencyNotation, DependencyNotation>
+    val scopeToModuleIdMap: Map<Scope, List<ModuleVersionIdentifier>>,
+    val dependencyToDependencyMap: Map<ModuleVersionIdentifier, ModuleVersionIdentifier>
   ) {
-    class Builder {
-      private val scopeToNotationsMap = mutableMapOf<Scope, MutableList<DependencyNotation>>()
-      private val dependencyToDependencyMap = mutableMapOf<DependencyNotation, DependencyNotation>()
 
-      fun addDependencyNotation(scope: Scope, notation: DependencyNotation) = apply {
-        val notations = scopeToNotationsMap.getOrPut(scope) { mutableListOf() }
-        notations += notation
+    class Builder {
+      private val moduleIdsByScope = mutableMapOf<Scope, MutableList<ModuleVersionIdentifier>>()
+      private val moduleIdMapping = mutableMapOf<ModuleVersionIdentifier, ModuleVersionIdentifier>()
+
+      fun addModuleId(scope: Scope, moduleId: ModuleVersionIdentifier) = apply {
+        val moduleIds = moduleIdsByScope.getOrPut(scope) { mutableListOf() }
+        moduleIds += moduleId
       }
 
-      fun addDependencyMapping(source: DependencyNotation, target: DependencyNotation) = apply {
-        dependencyToDependencyMap[source] = target
+      fun addModuleIdMapping(source: ModuleVersionIdentifier, target: ModuleVersionIdentifier) = apply {
+        moduleIdMapping[source] = target
       }
 
       fun build(): DependencyResolutionResult {
-        val notationToVersionMap =
-            scopeToNotationsMap
-                .flatMap { it.value }
-                .groupBy(
-                    { it.copy(version = "") },
-                    { DefaultArtifactVersion(it.version) }
-                )
-                .mapValues { it.value.max() }
+        val versionByModuleId =
+          moduleIdsByScope
+            .flatMap { it.value }
+            .groupBy(
+              { it.withVersion("") },
+              { DefaultArtifactVersion(it.version) }
+            )
+            .mapValues { it.value.max() }
 
-        val processedNotations = mutableSetOf<DependencyNotation>()
-        val scopeToResolvedNotationsMap = mutableMapOf<Scope, List<DependencyNotation>>()
+        val processedModuleIds = mutableSetOf<ModuleVersionIdentifier>()
+        val resolvedModuleIdsByScope = mutableMapOf<Scope, List<ModuleVersionIdentifier>>()
         for (scope in Scope.values()) {
-          scopeToNotationsMap[scope]?.also { dependencies ->
-            scopeToResolvedNotationsMap[scope] = dependencies.mapNotNull {
-              val notation = it.copy(version = "")
-              if (processedNotations.add(notation)) {
-                val version = notationToVersionMap[notation]!!
-                notation.copy(version = version.toString())
+          moduleIdsByScope[scope]?.also { dependencies ->
+            resolvedModuleIdsByScope[scope] = dependencies.mapNotNull {
+              val moduleId = it.withVersion("")
+              if (processedModuleIds.add(moduleId)) {
+                val version = checkNotNull(versionByModuleId[moduleId])
+                moduleId.withVersion(version.toString())
               } else {
                 null
               }
@@ -144,16 +149,36 @@ class DependencyResolver private constructor(
           }
         }
 
-        return DependencyResolutionResult(scopeToResolvedNotationsMap, dependencyToDependencyMap.toMap())
+        return DependencyResolutionResult(resolvedModuleIdsByScope, moduleIdMapping.toMap())
+      }
+
+      private fun ModuleVersionIdentifier.withVersion(version: String): ModuleVersionIdentifier {
+        return if (this.version == version) this else SimpleModuleVersionIdentifier(module, version)
       }
     }
   }
 
-  data class DependencyNotation(
-      val group: String,
-      val name: String,
-      val version: String
-  )
+  private data class SimpleModuleVersionIdentifier(
+    private val id: ModuleIdentifier,
+    private val version: String
+  ) : ModuleVersionIdentifier {
+
+    constructor(group: String, name: String, version: String) : this(SimpleModuleIdentifier(group, name), version)
+
+    override fun getModule(): ModuleIdentifier = id
+    override fun getGroup(): String = id.group
+    override fun getName(): String = id.name
+    override fun getVersion(): String = version
+  }
+
+  private data class SimpleModuleIdentifier(
+    private val group: String,
+    private val name: String
+  ) : ModuleIdentifier {
+
+    override fun getGroup(): String = group
+    override fun getName(): String = name
+  }
 
   enum class Scope {
     RELOCATE,

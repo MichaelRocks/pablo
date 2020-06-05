@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Michael Rozumyanskiy
+ * Copyright 2020 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,15 +23,14 @@ import org.gradle.BuildAdapter
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Dependency
+import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
-import org.gradle.api.artifacts.ResolvedDependency
 import org.gradle.api.invocation.Gradle
 import org.gradle.api.logging.Logger
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginConvention
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.specs.Spec
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.javadoc.Javadoc
@@ -57,14 +56,10 @@ class PabloPlugin : Plugin<Project> {
     project.gradle.addBuildListener(
         object : BuildAdapter() {
           override fun projectsEvaluated(gradle: Gradle) {
-            val resolvedDependencies = DependencyResolver.resolve(project, extension.repackage)
-            if (extension.repackage) {
-              copyTransitiveDependencies()
-              configureShadowJar(resolvedDependencies)
-            }
+            configureShadowJar()
 
             configureBintray()
-            configurePublications(resolvedDependencies)
+            configurePublications()
           }
         }
     )
@@ -95,31 +90,38 @@ class PabloPlugin : Plugin<Project> {
     project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME).extendsFrom(relocate)
   }
 
-  private fun copyTransitiveDependencies() {
-    val relocate = project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
-    relocate.dependencies.forEach { dependency ->
-      processRelocateDependency(dependency)
-    }
-  }
+  private fun configureShadowJar() {
+    val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
+    shadowJar.configurations = listOf(
+        project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
+    )
 
-  private fun processRelocateDependency(dependency: Dependency) {
-    if (dependency is ProjectDependency) {
-      copyTransitiveDependenciesFromSubproject(dependency.dependencyProject)
-    }
-  }
+    addProjectDependenciesToShadowJar(shadowJar, project)
 
-  private fun copyTransitiveDependenciesFromSubproject(subproject: Project) {
-    val projectShadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
-    val subprojectShadowJar = subproject.tasks.findByName(SHADOW_JAR_TASK_NAME) as ShadowJar?
-    subprojectShadowJar?.relocators?.forEach {
-      projectShadowJar.relocate(it)
-    }
-
-    subproject.configurations.forEach { configuration ->
+    val filter = shadowJar.dependencyFilter
+    project.configurations.forEach { configuration ->
+      val shouldInclude = configuration.name == RELOCATE_CONFIGURATION_NAME
       configuration.dependencies.forEach { dependency ->
-        project.configurations.getByName(configuration.name).dependencies.add(dependency.copy())
-        if (configuration.name == RELOCATE_CONFIGURATION_NAME) {
-          processRelocateDependency(dependency)
+        val spec = filter.dependency(dependency)
+        if (shouldInclude) filter.include(spec) else filter.exclude(spec)
+      }
+    }
+
+    shadowJar.setArchiveClassifier(null)
+  }
+
+  private fun addProjectDependenciesToShadowJar(shadowJar: ShadowJar, project: Project) {
+    val convention = project.convention.getPlugin(JavaPluginConvention::class.java)
+    shadowJar.from(convention.sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).output)
+
+    val relocateConfiguration = project.configurations.findByName(RELOCATE_CONFIGURATION_NAME) ?: return
+    relocateConfiguration.allDependencies.forEach { dependency ->
+      if (dependency is ProjectDependency) {
+        val projectShadowJar = dependency.dependencyProject.tasks.findByName(SHADOW_JAR_TASK_NAME) as ShadowJar?
+        if (projectShadowJar != null) {
+          shadowJar.from(projectShadowJar.archiveFile)
+        } else {
+          addProjectDependenciesToShadowJar(shadowJar, dependency.dependencyProject)
         }
       }
     }
@@ -145,30 +147,8 @@ class PabloPlugin : Plugin<Project> {
     project.artifacts.add(Dependency.ARCHIVES_CONFIGURATION, javadocJar)
   }
 
-  private fun configureShadowJar(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
-    val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
-    shadowJar.configurations = listOf(
-        project.configurations.findByName(RELOCATE_CONFIGURATION_NAME)
-    )
-
-    val filter = shadowJar.dependencyFilter
-    filter.include(resolvedDependencies.toIncludeSpec())
-
-    shadowJar.setArchiveClassifier(REPACK_CLASSIFIER)
-  }
-
-  private fun DependencyResolver.DependencyResolutionResult.toIncludeSpec(): Spec<ResolvedDependency> {
-    val dependenciesToRelocate = scopeToNotationsMap[DependencyResolver.Scope.RELOCATE] ?: emptyList()
-    return Spec { dependency ->
-      val originalNotation =
-          DependencyResolver.DependencyNotation(dependency.moduleGroup, dependency.moduleName, dependency.moduleVersion)
-      val notation = dependencyToDependencyMap[originalNotation] ?: originalNotation
-      notation in dependenciesToRelocate
-    }
-  }
-
   @Suppress("Deprecation")
-  private fun Jar.setArchiveClassifier(classifier: String) {
+  private fun Jar.setArchiveClassifier(classifier: String?) {
     if (GradleVersion.current() >= GRADLE_VERSION_5_1) {
       archiveClassifier.set(classifier)
     } else {
@@ -198,36 +178,32 @@ class PabloPlugin : Plugin<Project> {
     }
   }
 
+  @Suppress("SameParameterValue")
   private fun readBooleanProperty(propertyName: String, defaultValue: Boolean): Boolean {
     return project.findProperty(propertyName)?.toString()?.toBoolean() ?: defaultValue
   }
 
-  private fun configurePublications(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
+  private fun configurePublications() {
     val bintray = project.extensions.getByType(BintrayExtension::class.java)
     val publishing = project.extensions.getByType(PublishingExtension::class.java)
     publishing.publications.create(PUBLICATION_NAME, MavenPublication::class.java) { publication ->
       publication.artifactId = bintray.pkg.name
-      if (extension.repackage) {
-        publication.artifact(project.tasks.getByName(SHADOW_JAR_TASK_NAME)) { artifact ->
-          artifact.classifier = null
-        }
-      } else {
-        publication.artifact(project.tasks.getByName(JavaPlugin.JAR_TASK_NAME))
-      }
 
+      publication.artifact(project.tasks.getByName(SHADOW_JAR_TASK_NAME))
       publication.artifact(project.tasks.getByName(SOURCES_JAR_TASK_NAME))
       publication.artifact(project.tasks.getByName(JAVADOC_JAR_TASK_NAME))
 
       publication.pom.withXml { xml ->
         val root = xml.asNode()
-        val dependencies = root.appendNode("dependencies")
-        dependencies.addDependenciesToPom(resolvedDependencies)
+        val dependenciesNode = root.appendNode("dependencies")
+        val resolvedDependencies = DependencyResolver.resolve(project, extension.repackage)
+        dependenciesNode.addDependenciesToPom(resolvedDependencies)
       }
     }
   }
 
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
-    resolvedDependencies.scopeToNotationsMap.forEach { (scope, notations) ->
+    resolvedDependencies.scopeToModuleIdMap.forEach { (scope, notations) ->
       if (scope != DependencyResolver.Scope.RELOCATE || !extension.repackage) {
         val mavenScope =
             if (scope == DependencyResolver.Scope.RELOCATE) {
@@ -240,11 +216,11 @@ class PabloPlugin : Plugin<Project> {
     }
   }
 
-  private fun Node.addDependencyNode(notation: DependencyResolver.DependencyNotation, scope: String) {
+  private fun Node.addDependencyNode(moduleId: ModuleVersionIdentifier, scope: String) {
     appendNode("dependency").also {
-      it.appendNode("groupId", notation.group)
-      it.appendNode("artifactId", notation.name)
-      it.appendNode("version", notation.version)
+      it.appendNode("groupId", moduleId.group)
+      it.appendNode("artifactId", moduleId.name)
+      it.appendNode("version", moduleId.version)
       it.appendNode("scope", scope)
     }
   }
@@ -270,7 +246,6 @@ class PabloPlugin : Plugin<Project> {
 
     const val SOURCES_CLASSIFIER = "sources"
     const val JAVADOC_CLASSIFIER = "javadoc"
-    const val REPACK_CLASSIFIER = "repack"
 
     private val GRADLE_VERSION_5_1 = GradleVersion.version("5.1")
   }
