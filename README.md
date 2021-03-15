@@ -4,7 +4,7 @@ Pablo
 =====
 
 A plugin for repackaging build artifacts and publishing them to Bintray.
-I use this plugin in my projects and you probably don't need it.
+I use this plugin in my projects, and you probably don't need it.
 
 Usage
 -----
@@ -15,7 +15,7 @@ buildscript {
   }
 
   dependencies {
-    classpath 'io.michaelrocks:pablo:pablo:1.0.4'
+    classpath 'io.michaelrocks:pablo:pablo:1.1.0'
   }
 }
 
