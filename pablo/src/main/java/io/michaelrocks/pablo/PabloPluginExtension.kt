@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Michael Rozumyanskiy
+ * Copyright 2021 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,43 @@
 
 package io.michaelrocks.pablo
 
-open class PabloPluginExtension {
-  var repository: String? = null
-  var artifactName: String? = null
+import org.gradle.api.Action
+import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.Property
+import org.gradle.api.publish.maven.MavenPom
+import java.io.File
+import javax.inject.Inject
+
+interface PabloPluginExtension {
+  val propertiesFile: Property<File>
+  val artifactName: Property<String>
+
+  fun repositories(configure: Action<in RepositoryHandler>)
+  fun pom(configure: Action<in MavenPom>)
+  fun signing(configure: Action<in SigningConfiguration>)
+}
+
+internal open class DefaultPabloPluginExtension @Inject constructor(
+  val signing: SigningConfiguration,
+  objectFactory: ObjectFactory
+) : PabloPluginExtension {
+
+  override val propertiesFile: Property<File> = objectFactory.property(File::class.java)
+  override val artifactName: Property<String> = objectFactory.property(String::class.java)
+
+  val repositoriesActions: MutableList<Action<in RepositoryHandler>> = ArrayList()
+  val pomActions: MutableList<Action<in MavenPom>> = ArrayList()
+
+  override fun repositories(configure: Action<in RepositoryHandler>) {
+    repositoriesActions += configure
+  }
+
+  override fun pom(configure: Action<in MavenPom>) {
+    pomActions += configure
+  }
+
+  override fun signing(configure: Action<in SigningConfiguration>) {
+    configure.execute(signing)
+  }
 }

@@ -3,7 +3,7 @@
 Pablo
 =====
 
-A plugin for repackaging build artifacts and publishing them to Bintray.
+A plugin for repackaging build artifacts and publishing them to a maven repository.
 I use this plugin in my projects, and you probably don't need it.
 
 Usage
@@ -11,7 +11,7 @@ Usage
 ```groovy
 buildscript {
   repositories {
-    jcenter()
+    mavenCentral()
   }
 
   dependencies {

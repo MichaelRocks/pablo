@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Michael Rozumyanskiy
+ * Copyright 2021 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package io.michaelrocks.pablo
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import com.jfrog.bintray.gradle.BintrayExtension
 import groovy.util.Node
 import org.gradle.BuildAdapter
 import org.gradle.api.Plugin
@@ -29,18 +28,20 @@ import org.gradle.api.invocation.Gradle
 import org.gradle.api.logging.Logger
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginConvention
+import org.gradle.api.provider.Property
+import org.gradle.api.publish.Publication
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.javadoc.Javadoc
-import org.gradle.util.GradleVersion
-import java.util.Date
+import org.gradle.plugins.signing.SigningExtension
+import java.util.Properties
 
 class PabloPlugin : Plugin<Project> {
   private lateinit var project: Project
   private lateinit var logger: Logger
-  private lateinit var extension: PabloPluginExtension
+  private lateinit var extension: DefaultPabloPluginExtension
 
   override fun apply(project: Project) {
     this.project = project
@@ -56,10 +57,9 @@ class PabloPlugin : Plugin<Project> {
     project.gradle.addBuildListener(
         object : BuildAdapter() {
           override fun projectsEvaluated(gradle: Gradle) {
+            loadProperties()
             configureShadowJar()
-
-            configureBintray()
-            configurePublications()
+            configurePublication()
           }
         }
     )
@@ -68,18 +68,48 @@ class PabloPlugin : Plugin<Project> {
   }
 
   fun getArtifactName(): String {
-    return extension.artifactName ?: project.rootProject.name + '-' + project.name
+    return extension.artifactName.orNull ?: project.rootProject.name + '-' + project.name
   }
 
-  private fun createPluginExtension(): PabloPluginExtension {
-    return project.extensions.create("pablo", PabloPluginExtension::class.java)
+  private fun createPluginExtension(): DefaultPabloPluginExtension {
+    val singingConfiguration = project.objects.newInstance(DefaultSigningConfiguration::class.java, project.objects)
+    val extension = project.objects.newInstance(DefaultPabloPluginExtension::class.java, singingConfiguration, project.objects)
+    project.extensions.add(PabloPluginExtension::class.java, "pablo", extension)
+    return extension
   }
 
   private fun applyPlugins() {
     project.plugins.apply("java")
     project.plugins.apply("maven-publish")
-    project.plugins.apply("com.jfrog.bintray")
+    project.plugins.apply("signing")
     project.plugins.apply("com.github.johnrengelman.shadow")
+  }
+
+  private fun loadProperties() {
+    val extras = project.extensions.extraProperties
+    extension.signing.keyId.orNull?.also { extras[KEY_SIGNING_KEY_ID] = it }
+    extension.signing.password.orNull?.also { extras[KEY_SIGNING_PASSWORD] = it }
+    extension.signing.secretKeyRingFile.orNull?.also { extras[KEY_SIGNING_SECRET_KEY_RING_FILE] = it.absolutePath }
+
+    val propertiesFile = extension.propertiesFile.orNull ?: project.file("pablo.properties")
+    if (propertiesFile.exists()) {
+      val pabloProperties = Properties()
+      propertiesFile.inputStream().buffered().use { pabloProperties.load(it) }
+      pabloProperties.forEach { entry ->
+        val key = entry.key.toString()
+        if (key.startsWith(PREFIX_ROOT)) {
+          if (key.startsWith(PREFIX_SIGNING)) {
+            if (key == "$PREFIX_ROOT$KEY_SIGNING_SECRET_KEY_RING_FILE") {
+              extras[KEY_SIGNING_SECRET_KEY_RING_FILE] = project.rootProject.file(entry.value).absolutePath
+            } else {
+              extras[key.removePrefix(PREFIX_ROOT)] = entry.value
+            }
+          } else {
+            extras[key] = entry.value
+          }
+        }
+      }
+    }
   }
 
   private fun createRelocateConfiguration() {
@@ -107,7 +137,7 @@ class PabloPlugin : Plugin<Project> {
       }
     }
 
-    shadowJar.setArchiveClassifier(null)
+    shadowJar.archiveClassifier.set(null as String?)
   }
 
   private fun addProjectDependenciesToShadowJar(shadowJar: ShadowJar, project: Project) {
@@ -133,66 +163,64 @@ class PabloPlugin : Plugin<Project> {
     val sourcesJar = project.tasks.create(SOURCES_JAR_TASK_NAME, Jar::class.java) { task ->
       task.dependsOn(project.tasks.getByName(JavaPlugin.CLASSES_TASK_NAME))
       task.from(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).allSource)
-      task.setArchiveClassifier(SOURCES_CLASSIFIER)
+      task.archiveClassifier.set(SOURCES_CLASSIFIER)
     }
 
     val javadocJar = project.tasks.create(JAVADOC_JAR_TASK_NAME, Jar::class.java) { task ->
       val javadoc = project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME) as Javadoc
       task.dependsOn(javadoc)
       task.from(javadoc.destinationDir)
-      task.setArchiveClassifier(JAVADOC_CLASSIFIER)
+      task.archiveClassifier.set(JAVADOC_CLASSIFIER)
     }
 
     project.artifacts.add(Dependency.ARCHIVES_CONFIGURATION, sourcesJar)
     project.artifacts.add(Dependency.ARCHIVES_CONFIGURATION, javadocJar)
   }
 
-  @Suppress("Deprecation")
-  private fun Jar.setArchiveClassifier(classifier: String?) {
-    if (GradleVersion.current() >= GRADLE_VERSION_5_1) {
-      archiveClassifier.set(classifier)
-    } else {
-      setClassifier(classifier)
-    }
+  private fun configurePublication() {
+    val publishing = project.extensions.getByType(PublishingExtension::class.java)
+    val signing = project.extensions.getByType(SigningExtension::class.java)
+
+    publishing.configureRepositories()
+    val publication = publishing.createPublication()
+    signing.sign(publication)
   }
 
-  private fun configureBintray() {
-    project.extensions.getByType(BintrayExtension::class.java).also { bintray ->
-      bintray.user = project.findProperty(BINTRAY_USER_PROPERTY)?.toString()
-      bintray.key = project.findProperty(BINTRAY_KEY_PROPERTY)?.toString()
+  private fun PublishingExtension.configureRepositories() {
+    extension.repositoriesActions.forEach { repositories(it) }
+    repositories { repositories ->
+      val url = project.findProperty("pablo.repository.maven.url")
+      if (url != null) {
+        repositories.maven { repository ->
+          repository.setUrl(url)
 
-      bintray.setPublications(PUBLICATION_NAME)
+          val name = project.findProperty("pablo.repository.maven.name")
+          val username = project.findProperty("pablo.repository.maven.username")
+          val password = project.findProperty("pablo.repository.maven.password")
 
-      bintray.dryRun = readBooleanProperty("dryRun", false)
-      bintray.publish = readBooleanProperty("publish", false)
+          if (name != null) {
+            repository.name = name.toString()
+          }
 
-      bintray.pkg.also { pkg ->
-        pkg.repo = extension.repository ?: "maven"
-        pkg.name = getArtifactName()
-
-        pkg.version.also { version ->
-          version.released = Date().toString()
-          version.vcsTag = "v$project.version"
+          repository.credentials { credentials ->
+            credentials.username = username?.toString()
+            credentials.password = password?.toString()
+          }
         }
       }
     }
   }
 
-  @Suppress("SameParameterValue")
-  private fun readBooleanProperty(propertyName: String, defaultValue: Boolean): Boolean {
-    return project.findProperty(propertyName)?.toString()?.toBoolean() ?: defaultValue
-  }
-
-  private fun configurePublications() {
-    val bintray = project.extensions.getByType(BintrayExtension::class.java)
-    val publishing = project.extensions.getByType(PublishingExtension::class.java)
-    publishing.publications.create(PUBLICATION_NAME, MavenPublication::class.java) { publication ->
-      publication.artifactId = bintray.pkg.name
+  private fun PublishingExtension.createPublication(): Publication {
+    return publications.create(PUBLICATION_NAME, MavenPublication::class.java) { publication ->
+      publication.artifactId = getArtifactName()
 
       publication.artifact(project.tasks.getByName(SHADOW_JAR_TASK_NAME))
       publication.artifact(project.tasks.getByName(SOURCES_JAR_TASK_NAME))
       publication.artifact(project.tasks.getByName(JAVADOC_JAR_TASK_NAME))
 
+      publication.setPomDefaults()
+      extension.pomActions.forEach { publication.pom(it) }
       publication.pom.withXml { xml ->
         val root = xml.asNode()
         val dependenciesNode = root.appendNode("dependencies")
@@ -200,6 +228,72 @@ class PabloPlugin : Plugin<Project> {
         dependenciesNode.addDependenciesToPom(resolvedDependencies)
       }
     }
+  }
+
+  private fun MavenPublication.setPomDefaults() {
+    pom { pom ->
+      withProjectProperty("pablo.pom.packaging") { pom.packaging = it }
+      pom.name.maybeSetFromProjectProperty("pablo.pom.name")
+      pom.description.maybeSetFromProjectProperty("pablo.pom.description")
+      pom.inceptionYear.maybeSetFromProjectProperty("pablo.pom.inceptionYear")
+      pom.url.maybeSetFromProjectProperty("pablo.pom.url")
+
+      val licenseName = findProjectProperty("pablo.pom.license.name")
+      val licenseUrl = findProjectProperty("pablo.pom.license.url")
+      val licenseDistribution = findProjectProperty("pablo.pom.license.distribution")
+      if (licenseName != null || licenseUrl != null || licenseDistribution != null) {
+        pom.licenses { licenses ->
+          licenses.license { license ->
+            license.name.maybeSet(licenseName)
+            license.url.maybeSet(licenseUrl)
+            license.distribution.maybeSet(licenseDistribution)
+          }
+        }
+      }
+
+      val developerId = findProjectProperty("pablo.pom.developer.id")
+      val developerName = findProjectProperty("pablo.pom.developer.name")
+      val developerEmail = findProjectProperty("pablo.pom.developer.email")
+      if (developerId != null || developerName != null || developerEmail != null) {
+        pom.developers { developers ->
+          developers.developer { developer ->
+            developer.id.maybeSet(developerId)
+            developer.name.maybeSet(developerName)
+            developer.email.maybeSet(developerEmail)
+          }
+        }
+      }
+
+      val scmConnection = findProjectProperty("pablo.pom.scm.connection")
+      val scmDeveloperConnection = findProjectProperty("pablo.pom.scm.developerConnection")
+      val scmUrl = findProjectProperty("pablo.pom.scm.url")
+      if (scmConnection != null || scmDeveloperConnection != null || scmUrl != null) {
+        pom.scm { scm ->
+          scm.connection.maybeSet(scmConnection)
+          scm.developerConnection.maybeSet(scmDeveloperConnection)
+          scm.url.maybeSet(scmUrl)
+        }
+      }
+    }
+  }
+
+  private fun Property<String>.maybeSetFromProjectProperty(name: String) {
+    withProjectProperty(name) { set(it) }
+  }
+
+  private fun Property<String>.maybeSet(value: String?) {
+    if (value != null) {
+      set(value)
+    }
+  }
+
+  private fun findProjectProperty(name: String): String? {
+    return project.findProperty(name) as? String
+  }
+
+  private inline fun withProjectProperty(name: String, action: (String) -> Unit) {
+    val value = findProjectProperty(name) ?: return
+    action(value)
   }
 
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
@@ -235,18 +329,22 @@ class PabloPlugin : Plugin<Project> {
   }
 
   companion object {
-    const val BINTRAY_USER_PROPERTY = "bintrayUser"
-    const val BINTRAY_KEY_PROPERTY = "bintrayKey"
-    const val PUBLICATION_NAME = "mavenJava"
+    private const val PREFIX_ROOT = "pablo."
+    private const val PREFIX_SIGNING = "pablo.signing."
 
-    const val SHADOW_JAR_TASK_NAME = "shadowJar"
-    const val SOURCES_JAR_TASK_NAME = "sourcesJar"
-    const val JAVADOC_JAR_TASK_NAME = "javadocJar"
+    private const val KEY_SIGNING_KEY_ID = "signing.keyId"
+    private const val KEY_SIGNING_PASSWORD = "signing.password"
+    private const val KEY_SIGNING_SECRET_KEY_RING_FILE = "signing.secretKeyRingFile"
+
+    private const val PUBLICATION_NAME = "maven"
+
+    private const val SHADOW_JAR_TASK_NAME = "shadowJar"
+    private const val SOURCES_JAR_TASK_NAME = "sourcesJar"
+    private const val JAVADOC_JAR_TASK_NAME = "javadocJar"
+
+    private const val SOURCES_CLASSIFIER = "sources"
+    private const val JAVADOC_CLASSIFIER = "javadoc"
+
     const val RELOCATE_CONFIGURATION_NAME = "relocate"
-
-    const val SOURCES_CLASSIFIER = "sources"
-    const val JAVADOC_CLASSIFIER = "javadoc"
-
-    private val GRADLE_VERSION_5_1 = GradleVersion.version("5.1")
   }
 }

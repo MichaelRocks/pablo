@@ -2,11 +2,10 @@ buildscript {
   ext.javaVersion = JavaVersion.VERSION_1_8
   ext.kotlinVersion = '1.4.31'
   ext.shadowVersion = '5.2.0'
-  ext.bintrayVersion = '1.8.5'
   ext.mavenVersion = '3.6.3'
 
   repositories {
-    jcenter()
+    mavenCentral()
   }
 
   dependencies {
@@ -20,6 +19,35 @@ apply plugin: 'kotlin'
 if (project.path != ":") {
   apply plugin: 'io.michaelrocks.pablo'
   pablo.artifactName = 'pablo'
+  pablo {
+    artifactName = 'pablo'
+    pom {
+      name = 'Pablo'
+      description = 'A Gradle plugin for repackaging build artifacts and publishing them to a Maven repo.'
+      inceptionYear = '2018'
+      url = 'https://github.com/michaelrocks/pablo'
+
+      licenses {
+        license {
+          name = 'The Apache License, Version 2.0'
+          url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+          distribution = 'repo'
+        }
+      }
+      developers {
+        developer {
+          id = 'MichaelRocks'
+          name = 'Michael Rozumyanskiy'
+          email = 'michael.rozumyanskiy@gmail.com'
+        }
+      }
+      scm {
+        connection = 'scm:git:git://github.com/michaelrocks/pablo.git'
+        developerConnection = 'scm:git:ssh://git@github.com/michaelrocks/pablo.git'
+        url = 'https://github.com/michaelrocks/pablo'
+      }
+    }
+  }
 } else {
   jar.archiveFileName = 'pablo-bootstrap.jar'
 }
@@ -28,7 +56,7 @@ targetCompatibility = javaVersion
 sourceCompatibility = javaVersion
 
 repositories {
-  jcenter()
+  mavenCentral()
   gradlePluginPortal()
 }
 
@@ -37,8 +65,7 @@ dependencies {
 
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
   implementation "com.github.jengelman.gradle.plugins:shadow:$shadowVersion"
-  implementation "com.jfrog.bintray.gradle:gradle-bintray-plugin:$bintrayVersion"
-  implementation "org.apache.maven:maven:$mavenVersion"
+  implementation "org.apache.maven:maven-artifact:$mavenVersion"
 }
 
 compileKotlin {
