@@ -18,7 +18,6 @@ apply plugin: 'kotlin'
 // Don't apply the plugin for buildSrc.
 if (project.path != ":") {
   apply plugin: 'io.michaelrocks.pablo'
-  pablo.artifactName = 'pablo'
   pablo {
     artifactName = 'pablo'
     pom {
