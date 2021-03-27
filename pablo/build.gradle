@@ -1,7 +1,7 @@
 buildscript {
   ext.javaVersion = JavaVersion.VERSION_1_8
   ext.kotlinVersion = '1.4.31'
-  ext.shadowVersion = '5.2.0'
+  ext.shadowVersion = '6.1.0'
   ext.mavenVersion = '3.6.3'
 
   repositories {
