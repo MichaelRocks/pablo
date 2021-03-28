@@ -57,13 +57,13 @@ class PabloPlugin : Plugin<Project> {
     }
 
     project.gradle.addBuildListener(
-        object : BuildAdapter() {
-          override fun projectsEvaluated(gradle: Gradle) {
-            loadProperties()
-            configureShadowJar()
-            configurePublication()
-          }
+      object : BuildAdapter() {
+        override fun projectsEvaluated(gradle: Gradle) {
+          loadProperties()
+          configureShadowJar()
+          configurePublication()
         }
+      }
     )
 
     applyPlugins()
@@ -125,7 +125,7 @@ class PabloPlugin : Plugin<Project> {
   private fun configureShadowJar() {
     val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
     shadowJar.configurations = listOf(
-        project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
+      project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
     )
 
     val shadowConfiguration = project.objects.newInstance(DefaultShadowConfiguration::class.java, shadowJar)
