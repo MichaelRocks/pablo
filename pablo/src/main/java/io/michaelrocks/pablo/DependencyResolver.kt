@@ -26,7 +26,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.plugins.JavaPlugin
 
-class DependencyResolver private constructor(
+internal class DependencyResolver private constructor(
   private val project: Project
 ) {
 
@@ -73,16 +73,14 @@ class DependencyResolver private constructor(
   private fun resolve(dependency: Dependency, scope: Scope) {
     when (dependency) {
       is ProjectDependency -> {
-        val project = dependency.dependencyProject
-        val projectId = checkNotNull(mapping[project.path]) {
-          "Cannot find project ${project.path} in ${this.project.path}: $mapping"
+        val dependencyProject = dependency.dependencyProject
+        val projectId = checkNotNull(mapping[dependencyProject.path]) {
+          "Cannot find project ${dependencyProject.path} in ${project.path}: $mapping"
         }
 
         builder.addModuleId(scope, projectId)
         if (scope == Scope.RELOCATE) {
-          val originalProjectId = SimpleModuleVersionIdentifier(project.group.toString(), project.name, project.version.toString())
-          builder.addModuleIdMapping(originalProjectId, projectId)
-          resolve(project)
+          resolve(dependencyProject)
         }
       }
 
@@ -91,28 +89,26 @@ class DependencyResolver private constructor(
       }
 
       else -> {
-        val moduleId = SimpleModuleVersionIdentifier(dependency.group!!, dependency.name, dependency.version!!)
+        val moduleId = SimpleModuleVersionIdentifier.from(dependency)
         builder.addModuleId(scope, moduleId)
       }
     }
   }
 
   private fun resolve(dependencyConstraint: DependencyConstraint, scope: Scope) {
-    val moduleId = SimpleModuleVersionIdentifier(dependencyConstraint.group, dependencyConstraint.name, dependencyConstraint.version ?: "")
+    val moduleId = SimpleModuleVersionIdentifier.from(dependencyConstraint)
     builder.addModuleId(scope, moduleId)
   }
 
-  data class DependencyResolutionResult(
-    val scopeToModuleIdMap: Map<Scope, List<ModuleVersionIdentifier>>,
-    val dependencyToDependencyMap: Map<ModuleVersionIdentifier, ModuleVersionIdentifier>
+  class DependencyResolutionResult(
+    val scopeToModuleIdMap: Map<Scope, Collection<ModuleVersionIdentifier>>,
   ) {
 
     class Builder {
-      private val moduleIdsByScope = mutableMapOf<Scope, MutableList<ModuleVersionIdentifier>>()
-      private val moduleIdMapping = mutableMapOf<ModuleVersionIdentifier, ModuleVersionIdentifier>()
+      private val moduleIdsByScope = mutableMapOf<Scope, MutableSet<ModuleVersionIdentifier>>()
 
       fun addModuleId(scope: Scope, moduleId: ModuleVersionIdentifier) = apply {
-        val moduleIds = moduleIdsByScope.getOrPut(scope) { mutableListOf() }
+        val moduleIds = moduleIdsByScope.getOrPut(scope) { mutableSetOf() }
         moduleIds += moduleId
       }
 
@@ -128,13 +124,13 @@ class DependencyResolver private constructor(
               { it.withVersion("") },
               { DefaultArtifactVersion(it.version) }
             )
-            .mapValues { it.value.max() }
+            .mapValues { it.value.maxOrNull() }
 
         val processedModuleIds = mutableSetOf<ModuleVersionIdentifier>()
-        val resolvedModuleIdsByScope = mutableMapOf<Scope, List<ModuleVersionIdentifier>>()
+        val resolvedModuleIdsByScope = mutableMapOf<Scope, MutableSet<ModuleVersionIdentifier>>()
         for (scope in Scope.values()) {
           moduleIdsByScope[scope]?.also { dependencies ->
-            resolvedModuleIdsByScope[scope] = dependencies.mapNotNull {
+            resolvedModuleIdsByScope[scope] = dependencies.mapNotNullTo(mutableSetOf()) {
               val moduleId = it.withVersion("")
               if (processedModuleIds.add(moduleId)) {
                 val version = checkNotNull(versionByModuleId[moduleId])
@@ -146,7 +142,7 @@ class DependencyResolver private constructor(
           }
         }
 
-        return DependencyResolutionResult(resolvedModuleIdsByScope, moduleIdMapping.toMap())
+        return DependencyResolutionResult(resolvedModuleIdsByScope)
       }
 
       private fun ModuleVersionIdentifier.withVersion(version: String): ModuleVersionIdentifier {
@@ -166,6 +162,28 @@ class DependencyResolver private constructor(
     override fun getGroup(): String = id.group
     override fun getName(): String = id.name
     override fun getVersion(): String = version
+
+    override fun toString(): String {
+      return "$group:$name:${version.ifEmpty { "*" }}"
+    }
+
+    companion object {
+      fun from(project: Project): SimpleModuleVersionIdentifier {
+        return SimpleModuleVersionIdentifier(project.group.toString(), project.name, project.version.toString())
+      }
+
+      fun from(dependency: Dependency): SimpleModuleVersionIdentifier {
+        return SimpleModuleVersionIdentifier(dependency.group!!, dependency.name, dependency.version!!)
+      }
+
+      fun from(constraint: DependencyConstraint): SimpleModuleVersionIdentifier {
+        return SimpleModuleVersionIdentifier(constraint.group, constraint.name, constraint.version ?: "")
+      }
+
+      fun from(dependency: ResolvedDependency): SimpleModuleVersionIdentifier {
+        return SimpleModuleVersionIdentifier(dependency.moduleGroup, dependency.moduleName, dependency.moduleVersion)
+      }
+    }
   }
 
   private data class SimpleModuleIdentifier(
@@ -175,6 +193,10 @@ class DependencyResolver private constructor(
 
     override fun getGroup(): String = group
     override fun getName(): String = name
+
+    override fun toString(): String {
+      return "$group:$name"
+    }
   }
 
   enum class Scope {
