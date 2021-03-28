@@ -302,13 +302,7 @@ class PabloPlugin : Plugin<Project> {
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
     resolvedDependencies.scopeToModuleIdMap.forEach { (scope, notations) ->
       if (scope != DependencyResolver.Scope.RELOCATE) {
-        val mavenScope =
-            if (scope == DependencyResolver.Scope.RELOCATE) {
-              DependencyResolver.Scope.COMPILE.toMavenScope()
-            } else {
-              scope.toMavenScope()
-            }
-        notations.forEach { addDependencyNode(it, mavenScope) }
+        notations.forEach { addDependencyNode(it, scope.toMavenScope()) }
       }
     }
   }
