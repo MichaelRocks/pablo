@@ -23,6 +23,7 @@ import org.gradle.api.artifacts.DependencyConstraint
 import org.gradle.api.artifacts.ModuleIdentifier
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.ResolvedDependency
 import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.plugins.JavaPlugin
 
@@ -66,6 +67,19 @@ internal class DependencyResolver private constructor(
       if (scope != null) {
         configuration.dependencies.forEach { resolve(it, scope) }
         configuration.dependencyConstraints.forEach { resolve(it, scope) }
+      }
+
+      if (scope == Scope.RELOCATE) {
+        configuration.resolvedConfiguration
+          .getFirstLevelModuleDependencies() { it !is SelfResolvingDependency }
+          .forEach { resolvedDependency ->
+            resolvedDependency.children.forEach { childResolvedDependency ->
+              val childScope = Scope.fromConfigurationName(childResolvedDependency.configuration)
+              if (childScope != null) {
+                builder.addModuleId(childScope, SimpleModuleVersionIdentifier.from(childResolvedDependency))
+              }
+            }
+          }
       }
     }
   }
