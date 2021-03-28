@@ -58,6 +58,7 @@ internal class DependencyResolver private constructor(
 
   private fun resolve(): DependencyResolutionResult {
     resolve(project)
+    relocateTransitively(project)
     return builder.build()
   }
 
@@ -114,6 +115,29 @@ internal class DependencyResolver private constructor(
     builder.addModuleId(scope, moduleId)
   }
 
+  private fun relocateTransitively(project: Project) {
+    project.configurations.forEach { configuration ->
+      if (configuration.isCanBeResolved) {
+        val scope = Scope.fromConfigurationName(configuration.name)
+        if (scope != null && scope != Scope.PROVIDED) {
+          configuration.resolvedConfiguration.firstLevelModuleDependencies.forEach { resolvedDependency ->
+            relocateTransitively(resolvedDependency)
+          }
+        }
+      }
+    }
+  }
+
+  private fun relocateTransitively(resolvedDependency: ResolvedDependency): Boolean {
+    val moduleId = SimpleModuleVersionIdentifier.from(resolvedDependency)
+    if (resolvedDependency.children.any { relocateTransitively(it) }) {
+      builder.addModuleId(Scope.RELOCATE, moduleId)
+      return true
+    }
+
+    return builder.hasModuleId(Scope.RELOCATE, moduleId)
+  }
+
   class DependencyResolutionResult(
     val scopeToModuleIdMap: Map<Scope, Collection<ModuleVersionIdentifier>>,
   ) {
@@ -126,8 +150,9 @@ internal class DependencyResolver private constructor(
         moduleIds += moduleId
       }
 
-      fun addModuleIdMapping(source: ModuleVersionIdentifier, target: ModuleVersionIdentifier) = apply {
-        moduleIdMapping[source] = target
+      fun hasModuleId(scope: Scope, moduleId: ModuleVersionIdentifier): Boolean {
+        val moduleIds = moduleIdsByScope[scope] ?: return false
+        return moduleId in moduleIds
       }
 
       fun build(): DependencyResolutionResult {
