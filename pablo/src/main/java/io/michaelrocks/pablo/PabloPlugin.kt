@@ -126,6 +126,9 @@ class PabloPlugin : Plugin<Project> {
         project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
     )
 
+    val shadowConfiguration = project.objects.newInstance(DefaultShadowConfiguration::class.java, shadowJar)
+    extension.shadowActions.forEach { it.execute(shadowConfiguration) }
+
     addProjectDependenciesToShadowJar(shadowJar, project)
 
     val filter = shadowJar.dependencyFilter
