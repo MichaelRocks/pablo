@@ -43,6 +43,8 @@ class PabloPlugin : Plugin<Project> {
   private lateinit var logger: Logger
   private lateinit var extension: DefaultPabloPluginExtension
 
+  private val resolvedDependencies by lazy { DependencyResolver.resolve(project) }
+
   override fun apply(project: Project) {
     this.project = project
     this.logger = project.logger
@@ -132,13 +134,8 @@ class PabloPlugin : Plugin<Project> {
     addProjectDependenciesToShadowJar(shadowJar, project)
 
     val filter = shadowJar.dependencyFilter
-    project.configurations.forEach { configuration ->
-      val shouldInclude = configuration.name == RELOCATE_CONFIGURATION_NAME
-      configuration.dependencies.forEach { dependency ->
-        val spec = filter.dependency(dependency)
-        if (shouldInclude) filter.include(spec) else filter.exclude(spec)
-      }
-    }
+    val resolvedDependencies = resolvedDependencies
+    filter.include { resolvedDependencies.shouldBeRelocated(it) }
 
     shadowJar.archiveClassifier.set(null as String?)
   }
@@ -227,7 +224,6 @@ class PabloPlugin : Plugin<Project> {
       publication.pom.withXml { xml ->
         val root = xml.asNode()
         val dependenciesNode = root.appendNode("dependencies")
-        val resolvedDependencies = DependencyResolver.resolve(project)
         dependenciesNode.addDependenciesToPom(resolvedDependencies)
       }
     }

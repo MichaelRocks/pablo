@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Michael Rozumyanskiy
+ * Copyright 2021 Michael Rozumyanskiy
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -141,6 +141,14 @@ internal class DependencyResolver private constructor(
   class DependencyResolutionResult(
     val scopeToModuleIdMap: Map<Scope, Collection<ModuleVersionIdentifier>>,
   ) {
+
+    private val relocatableIds: Set<ModuleVersionIdentifier> by lazy {
+      scopeToModuleIdMap[Scope.RELOCATE].orEmpty().toSet()
+    }
+
+    fun shouldBeRelocated(resolvedDependency: ResolvedDependency): Boolean {
+      return SimpleModuleVersionIdentifier.from(resolvedDependency) in relocatableIds
+    }
 
     class Builder {
       private val moduleIdsByScope = mutableMapOf<Scope, MutableSet<ModuleVersionIdentifier>>()
