@@ -181,11 +181,24 @@ internal class DependencyResolver private constructor(
           }
         }
 
+        resolvedModuleIdsByScope.removeRedundantModuleIds(Scope.COMPILE, Scope.RELOCATE)
+        resolvedModuleIdsByScope.removeRedundantModuleIds(Scope.RUNTIME, Scope.RELOCATE)
+        resolvedModuleIdsByScope.removeRedundantModuleIds(Scope.PROVIDED, Scope.RELOCATE)
+        resolvedModuleIdsByScope.removeRedundantModuleIds(Scope.RUNTIME, Scope.COMPILE)
+        resolvedModuleIdsByScope.removeRedundantModuleIds(Scope.PROVIDED, Scope.COMPILE)
+        resolvedModuleIdsByScope.removeRedundantModuleIds(Scope.PROVIDED, Scope.RUNTIME)
+
         return DependencyResolutionResult(resolvedModuleIdsByScope)
       }
 
       private fun ModuleVersionIdentifier.withVersion(version: String): ModuleVersionIdentifier {
         return if (this.version == version) this else SimpleModuleVersionIdentifier(module, version)
+      }
+
+      private fun Map<Scope, MutableSet<ModuleVersionIdentifier>>.removeRedundantModuleIds(targetScope: Scope, sourceScope: Scope) {
+        val targetModuleIds = get(targetScope) ?: return
+        val sourceModuleIds = get(sourceScope) ?: return
+        targetModuleIds -= sourceModuleIds
       }
     }
   }
