@@ -21,11 +21,53 @@ buildscript {
 
 apply plugin: 'java'
 apply plugin: 'io.michaelrocks.pablo'
+
+pablo {
+  propertiesFile = /* A file to load properties from or pablo.properties by default. */
+  artifactName = /* A name of the artifact to publish or the project's name by default. */
+  
+  repositories {
+    // Configure Maven repositories to publish to like in maven-publish.
+    // Another way to configure a repository is using properties:
+    // - pablo.repository.maven.name
+    // - pablo.repository.maven.url
+    // - pablo.repository.maven.username
+    // - pablo.repository.maven.password
+  }
+  pom {
+    // Configure the content of pom.xml like in maven-publish.
+    // Another way to configure pom.xml is using properties:
+    // - pablo.pom.packaging
+    // - pablo.pom.name
+    // - pablo.pom.description
+    // - pablo.pom.inceptionYear
+    // - pablo.pom.url
+    // - pablo.pom.license.name
+    // - pablo.pom.license.url
+    // - pablo.pom.license.distribution
+    // - pablo.pom.developer.id
+    // - pablo.pom.developer.name
+    // - pablo.pom.developer.email
+    // - pablo.pom.scm.connection
+    // - pablo.pom.scm.developerConnection
+    // - pablo.pom.scm.url
+  }
+  signing {
+    keyId = /* A keyId for GPG signing, can be set with pablo.signing.keyId property. */
+    password = /* A password for GPG signing, can be set with pablo.signing.password property. */
+    secretKeyRingFile = /* A file to load a key ring from, can be set with pablo.signing.secretKeyRingFile property. */
+  }
+  shadow {
+    // Specify what packages should be relocated and how:
+    // - relocate(packageName)
+    // - relocate(fromPackageName, toPackageName)
+  }
+}
 ```
 
 License
 =======
-    Copyright 2018 Michael Rozumyanskiy
+    Copyright 2021 Michael Rozumyanskiy
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
