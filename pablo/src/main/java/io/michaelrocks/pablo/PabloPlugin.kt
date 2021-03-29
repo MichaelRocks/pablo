@@ -89,6 +89,7 @@ class PabloPlugin : Plugin<Project> {
 
   private fun loadProperties() {
     val extras = project.extensions.extraProperties
+    extension.signing.enabled.orNull?.also { extras[KEY_SIGNING_ENABLED] = it }
     extension.signing.keyId.orNull?.also { extras[KEY_SIGNING_KEY_ID] = it }
     extension.signing.password.orNull?.also { extras[KEY_SIGNING_PASSWORD] = it }
     extension.signing.secretKeyRingFile.orNull?.also { extras[KEY_SIGNING_SECRET_KEY_RING_FILE] = it.absolutePath }
@@ -100,7 +101,7 @@ class PabloPlugin : Plugin<Project> {
       pabloProperties.forEach { entry ->
         val key = entry.key.toString()
         if (key.startsWith(PREFIX_ROOT)) {
-          if (key.startsWith(PREFIX_SIGNING)) {
+          if (key.startsWith(PREFIX_SIGNING) && key != KEY_SIGNING_ENABLED) {
             if (key == "$PREFIX_ROOT$KEY_SIGNING_SECRET_KEY_RING_FILE") {
               extras[KEY_SIGNING_SECRET_KEY_RING_FILE] = project.rootProject.file(entry.value).absolutePath
             } else {
@@ -183,7 +184,9 @@ class PabloPlugin : Plugin<Project> {
 
     publishing.configureRepositories()
     val publication = publishing.createPublication()
-    signing.sign(publication)
+    if (shouldSignPublication()) {
+      signing.sign(publication)
+    }
   }
 
   private fun PublishingExtension.configureRepositories() {
@@ -321,10 +324,26 @@ class PabloPlugin : Plugin<Project> {
     }
   }
 
+  private fun shouldSignPublication(): Boolean {
+    val extras = project.extensions.extraProperties
+    if (!extras.has(KEY_SIGNING_ENABLED)) {
+      return true
+    }
+
+    return when (val signingEnabled = extras[KEY_SIGNING_ENABLED]) {
+      is Boolean -> signingEnabled
+      is Number -> signingEnabled != 0
+      is String -> signingEnabled != "0" && !signingEnabled.equals("false", ignoreCase = true)
+      else -> error("Unexpected value of property $KEY_SIGNING_ENABLED: $signingEnabled")
+    }
+  }
+
   companion object {
     private const val PREFIX_ROOT = "pablo."
     private const val PREFIX_SIGNING = "pablo.signing."
 
+    // This key contains pablo prefix intentionally since it's a custom property, not the Gradle's one.
+    private const val KEY_SIGNING_ENABLED = "pablo.signing.enabled"
     private const val KEY_SIGNING_KEY_ID = "signing.keyId"
     private const val KEY_SIGNING_PASSWORD = "signing.password"
     private const val KEY_SIGNING_SECRET_KEY_RING_FILE = "signing.secretKeyRingFile"

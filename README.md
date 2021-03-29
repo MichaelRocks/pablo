@@ -53,6 +53,7 @@ pablo {
     // - pablo.pom.scm.url
   }
   signing {
+    enabled = /* Whether or not publication signing is enabled, can be set with pablo.signing.enabled property. */
     keyId = /* A keyId for GPG signing, can be set with pablo.signing.keyId property. */
     password = /* A password for GPG signing, can be set with pablo.signing.password property. */
     secretKeyRingFile = /* A file to load a key ring from, can be set with pablo.signing.secretKeyRingFile property. */
