@@ -126,6 +126,13 @@ internal class DependencyResolver private constructor(
         }
       }
     }
+
+    val relocateConfiguration = project.configurations.findByName(PabloPlugin.RELOCATE_CONFIGURATION_NAME) ?: return
+    relocateConfiguration.dependencies.forEach { dependency ->
+      if (dependency is ProjectDependency) {
+        relocateTransitively(dependency.dependencyProject)
+      }
+    }
   }
 
   private fun relocateTransitively(resolvedDependency: ResolvedDependency): Boolean {
