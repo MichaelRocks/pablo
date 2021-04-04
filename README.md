@@ -45,6 +45,8 @@ pablo {
     // - pablo.pom.license.name
     // - pablo.pom.license.url
     // - pablo.pom.license.distribution
+    // - pablo.pom.organization.name
+    // - pablo.pom.organization.url
     // - pablo.pom.developer.id
     // - pablo.pom.developer.name
     // - pablo.pom.developer.email

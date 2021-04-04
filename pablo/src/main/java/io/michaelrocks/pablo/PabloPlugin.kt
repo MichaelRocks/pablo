@@ -253,6 +253,15 @@ class PabloPlugin : Plugin<Project> {
         }
       }
 
+      val organizationName = findProjectProperty("pablo.pom.organization.name")
+      val organizationUrl = findProjectProperty("pablo.pom.organization.email")
+      if (organizationName != null || organizationUrl != null) {
+        pom.organization { organization ->
+          organization.name.maybeSet(organizationName)
+          organization.url.maybeSet(organizationUrl)
+        }
+      }
+
       val developerId = findProjectProperty("pablo.pom.developer.id")
       val developerName = findProjectProperty("pablo.pom.developer.name")
       val developerEmail = findProjectProperty("pablo.pom.developer.email")
