@@ -25,6 +25,7 @@ interface SigningConfiguration {
   val enabled: Property<Boolean>
   val keyId: Property<String>
   val password: Property<String>
+  val secretKey: Property<String>
   val secretKeyRingFile: Property<File>
 }
 
@@ -35,5 +36,6 @@ internal open class DefaultSigningConfiguration @Inject constructor(
   override val enabled: Property<Boolean> = objectFactory.property(Boolean::class.java)
   override val keyId: Property<String> = objectFactory.property(String::class.java)
   override val password: Property<String> = objectFactory.property(String::class.java)
+  override val secretKey: Property<String> = objectFactory.property(String::class.java)
   override val secretKeyRingFile: Property<File> = objectFactory.property(File::class.java)
 }

@@ -58,6 +58,7 @@ pablo {
     enabled = /* Whether or not publication signing is enabled, can be set with pablo.signing.enabled property. */
     keyId = /* A keyId for GPG signing, can be set with pablo.signing.keyId property. */
     password = /* A password for GPG signing, can be set with pablo.signing.password property. */
+    secretKey = /* An ASCII-armored secret key ring, can be set with pablo.signing.secretKey property. */
     secretKeyRingFile = /* A file to load a key ring from, can be set with pablo.signing.secretKeyRingFile property. */
   }
   shadow {

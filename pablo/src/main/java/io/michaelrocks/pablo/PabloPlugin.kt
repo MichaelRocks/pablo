@@ -111,7 +111,10 @@ class PabloPlugin : Plugin<Project> {
     extension.signing.enabled.orNull?.also { maybeSetExtra(KEY_SIGNING_ENABLED, it) }
     extension.signing.keyId.orNull?.also { maybeSetExtra(KEY_SIGNING_KEY_ID, it) }
     extension.signing.password.orNull?.also { maybeSetExtra(KEY_SIGNING_PASSWORD, it) }
-    extension.signing.secretKeyRingFile.orNull?.also { maybeSetExtra(KEY_SIGNING_SECRET_KEY_RING_FILE, it.absolutePath) }
+    if (!project.hasProperty(KEY_SIGNING_SECRET_KEY) && !project.hasProperty(KEY_SIGNING_SECRET_KEY_RING_FILE)) {
+      extension.signing.secretKey.orNull?.also { maybeSetExtra(KEY_SIGNING_SECRET_KEY, it) }
+      extension.signing.secretKeyRingFile.orNull?.also { maybeSetExtra(KEY_SIGNING_SECRET_KEY_RING_FILE, it.absolutePath) }
+    }
   }
 
   private fun maybeSetExtra(key: String, value: Any?) {
@@ -185,13 +188,9 @@ class PabloPlugin : Plugin<Project> {
 
   private fun configurePublication() {
     val publishing = project.extensions.getByType(PublishingExtension::class.java)
-    val signing = project.extensions.getByType(SigningExtension::class.java)
-
     publishing.configureRepositories()
     val publication = publishing.createPublication()
-    if (shouldSignPublication()) {
-      signing.sign(publication)
-    }
+    signPublication(publication)
   }
 
   private fun PublishingExtension.configureRepositories() {
@@ -319,6 +318,20 @@ class PabloPlugin : Plugin<Project> {
     }
   }
 
+  private fun signPublication(publication: Publication) {
+    if (shouldSignPublication()) {
+      val signing = project.extensions.getByType(SigningExtension::class.java)
+      val keyId = findProjectProperty(KEY_SIGNING_KEY_ID)
+      val secretKey = findProjectProperty(KEY_SIGNING_SECRET_KEY)
+      val password = findProjectProperty(KEY_SIGNING_PASSWORD)
+      if (secretKey != null && password != null) {
+        @Suppress("UnstableApiUsage")
+        signing.useInMemoryPgpKeys(keyId, secretKey, password)
+      }
+      signing.sign(publication)
+    }
+  }
+
   private fun shouldSignPublication(): Boolean {
     if (!project.hasProperty(KEY_SIGNING_ENABLED)) {
       return true
@@ -359,6 +372,7 @@ class PabloPlugin : Plugin<Project> {
     private const val KEY_SIGNING_ENABLED = "pablo.signing.enabled"
     private const val KEY_SIGNING_KEY_ID = "signing.keyId"
     private const val KEY_SIGNING_PASSWORD = "signing.password"
+    private const val KEY_SIGNING_SECRET_KEY = "signing.secretKey"
     private const val KEY_SIGNING_SECRET_KEY_RING_FILE = "signing.secretKeyRingFile"
 
     private const val PUBLICATION_NAME = "maven"
