@@ -88,12 +88,6 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun loadProperties() {
-    val extras = project.extensions.extraProperties
-    extension.signing.enabled.orNull?.also { extras[KEY_SIGNING_ENABLED] = it }
-    extension.signing.keyId.orNull?.also { extras[KEY_SIGNING_KEY_ID] = it }
-    extension.signing.password.orNull?.also { extras[KEY_SIGNING_PASSWORD] = it }
-    extension.signing.secretKeyRingFile.orNull?.also { extras[KEY_SIGNING_SECRET_KEY_RING_FILE] = it.absolutePath }
-
     val propertiesFile = extension.propertiesFile.orNull ?: project.file("pablo.properties")
     if (propertiesFile.exists()) {
       val pabloProperties = Properties()
@@ -103,15 +97,26 @@ class PabloPlugin : Plugin<Project> {
         if (key.startsWith(PREFIX_ROOT)) {
           if (key.startsWith(PREFIX_SIGNING) && key != KEY_SIGNING_ENABLED) {
             if (key == "$PREFIX_ROOT$KEY_SIGNING_SECRET_KEY_RING_FILE") {
-              extras[KEY_SIGNING_SECRET_KEY_RING_FILE] = project.rootProject.file(entry.value).absolutePath
+              maybeSetExtra(KEY_SIGNING_SECRET_KEY_RING_FILE, project.rootProject.file(entry.value).absolutePath)
             } else {
-              extras[key.removePrefix(PREFIX_ROOT)] = entry.value
+              maybeSetExtra(key.removePrefix(PREFIX_ROOT),  entry.value)
             }
           } else {
-            extras[key] = entry.value
+            maybeSetExtra(key, entry.value)
           }
         }
       }
+    }
+
+    extension.signing.enabled.orNull?.also { maybeSetExtra(KEY_SIGNING_ENABLED, it) }
+    extension.signing.keyId.orNull?.also { maybeSetExtra(KEY_SIGNING_KEY_ID, it) }
+    extension.signing.password.orNull?.also { maybeSetExtra(KEY_SIGNING_PASSWORD, it) }
+    extension.signing.secretKeyRingFile.orNull?.also { maybeSetExtra(KEY_SIGNING_SECRET_KEY_RING_FILE, it.absolutePath) }
+  }
+
+  private fun maybeSetExtra(key: String, value: Any?) {
+    if (!project.hasProperty(key)) {
+      project.extensions.extraProperties.set(key, value)
     }
   }
 
@@ -288,25 +293,6 @@ class PabloPlugin : Plugin<Project> {
     }
   }
 
-  private fun Property<String>.maybeSetFromProjectProperty(name: String) {
-    withProjectProperty(name) { set(it) }
-  }
-
-  private fun Property<String>.maybeSet(value: String?) {
-    if (value != null) {
-      set(value)
-    }
-  }
-
-  private fun findProjectProperty(name: String): String? {
-    return project.findProperty(name) as? String
-  }
-
-  private inline fun withProjectProperty(name: String, action: (String) -> Unit) {
-    val value = findProjectProperty(name) ?: return
-    action(value)
-  }
-
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
     resolvedDependencies.scopeToModuleIdMap.forEach { (scope, notations) ->
       if (scope != DependencyResolver.Scope.RELOCATE) {
@@ -334,17 +320,35 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun shouldSignPublication(): Boolean {
-    val extras = project.extensions.extraProperties
-    if (!extras.has(KEY_SIGNING_ENABLED)) {
+    if (!project.hasProperty(KEY_SIGNING_ENABLED)) {
       return true
     }
 
-    return when (val signingEnabled = extras[KEY_SIGNING_ENABLED]) {
+    return when (val signingEnabled = project.findProperty(KEY_SIGNING_ENABLED)) {
       is Boolean -> signingEnabled
       is Number -> signingEnabled != 0
       is String -> signingEnabled != "0" && !signingEnabled.equals("false", ignoreCase = true)
       else -> error("Unexpected value of property $KEY_SIGNING_ENABLED: $signingEnabled")
     }
+  }
+
+  private fun Property<String>.maybeSetFromProjectProperty(name: String) {
+    withProjectProperty(name) { set(it) }
+  }
+
+  private fun Property<String>.maybeSet(value: String?) {
+    if (value != null) {
+      set(value)
+    }
+  }
+
+  private fun findProjectProperty(name: String): String? {
+    return project.findProperty(name) as? String
+  }
+
+  private inline fun withProjectProperty(name: String, action: (String) -> Unit) {
+    val value = findProjectProperty(name) ?: return
+    action(value)
   }
 
   companion object {
