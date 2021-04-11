@@ -95,15 +95,7 @@ class PabloPlugin : Plugin<Project> {
       pabloProperties.forEach { entry ->
         val key = entry.key.toString()
         if (key.startsWith(PREFIX_ROOT)) {
-          if (key.startsWith(PREFIX_SIGNING) && key != KEY_SIGNING_ENABLED) {
-            if (key == "$PREFIX_ROOT$KEY_SIGNING_SECRET_KEY_RING_FILE") {
-              maybeSetExtra(KEY_SIGNING_SECRET_KEY_RING_FILE, project.rootProject.file(entry.value).absolutePath)
-            } else {
-              maybeSetExtra(key.removePrefix(PREFIX_ROOT),  entry.value)
-            }
-          } else {
-            maybeSetExtra(key, entry.value)
-          }
+          maybeSetExtra(key, entry.value)
         }
       }
     }
@@ -327,6 +319,10 @@ class PabloPlugin : Plugin<Project> {
       if (secretKey != null && password != null) {
         @Suppress("UnstableApiUsage")
         signing.useInMemoryPgpKeys(keyId, secretKey, password)
+      } else {
+        setSigningPropertyFromProjectProperty(KEY_SIGNING_KEY_ID)
+        setSigningPropertyFromProjectProperty(KEY_SIGNING_PASSWORD)
+        setSigningPropertyFromProjectProperty(KEY_SIGNING_SECRET_KEY_RING_FILE)
       }
       signing.sign(publication)
     }
@@ -343,6 +339,19 @@ class PabloPlugin : Plugin<Project> {
       is String -> signingEnabled != "0" && !signingEnabled.equals("false", ignoreCase = true)
       else -> error("Unexpected value of property $KEY_SIGNING_ENABLED: $signingEnabled")
     }
+  }
+
+  private fun setSigningPropertyFromProjectProperty(key: String) {
+    val value = findProjectProperty(key) ?: return
+    if (key == KEY_SIGNING_SECRET_KEY_RING_FILE) {
+      setSigningProperty(key, project.rootProject.file(value).absolutePath)
+    } else {
+      setSigningProperty(key, value)
+    }
+  }
+
+  private fun setSigningProperty(key: String, value: String) {
+    project.extensions.extraProperties[key.removePrefix(PREFIX_ROOT)] = value
   }
 
   private fun Property<String>.maybeSetFromProjectProperty(name: String) {
@@ -366,14 +375,12 @@ class PabloPlugin : Plugin<Project> {
 
   companion object {
     private const val PREFIX_ROOT = "pablo."
-    private const val PREFIX_SIGNING = "pablo.signing."
 
-    // This key contains pablo prefix intentionally since it's a custom property, not the Gradle's one.
     private const val KEY_SIGNING_ENABLED = "pablo.signing.enabled"
-    private const val KEY_SIGNING_KEY_ID = "signing.keyId"
-    private const val KEY_SIGNING_PASSWORD = "signing.password"
-    private const val KEY_SIGNING_SECRET_KEY = "signing.secretKey"
-    private const val KEY_SIGNING_SECRET_KEY_RING_FILE = "signing.secretKeyRingFile"
+    private const val KEY_SIGNING_KEY_ID = "pablo.signing.keyId"
+    private const val KEY_SIGNING_PASSWORD = "pablo.signing.password"
+    private const val KEY_SIGNING_SECRET_KEY = "pablo.signing.secretKey"
+    private const val KEY_SIGNING_SECRET_KEY_RING_FILE = "pablo.signing.secretKeyRingFile"
 
     private const val PUBLICATION_NAME = "maven"
 
