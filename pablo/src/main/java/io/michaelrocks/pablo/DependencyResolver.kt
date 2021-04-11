@@ -278,11 +278,11 @@ internal class DependencyResolver private constructor(
         return when (configurationName) {
           PabloPlugin.RELOCATE_CONFIGURATION_NAME ->
             RELOCATE
-          JavaPlugin.COMPILE_CONFIGURATION_NAME,
+          "compile",
           JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
           JavaPlugin.API_CONFIGURATION_NAME ->
             COMPILE
-          JavaPlugin.RUNTIME_CONFIGURATION_NAME ->
+          "runtime" ->
             RUNTIME
           JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME,
           JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME ->
