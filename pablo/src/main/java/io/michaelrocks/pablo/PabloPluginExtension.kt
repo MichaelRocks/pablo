@@ -36,6 +36,7 @@ interface PabloPluginExtension {
 
 internal open class DefaultPabloPluginExtension @Inject constructor(
   val signing: SigningConfiguration,
+  val shadow: InternalShadowConfiguration,
   objectFactory: ObjectFactory
 ) : PabloPluginExtension {
 
@@ -44,7 +45,6 @@ internal open class DefaultPabloPluginExtension @Inject constructor(
 
   val repositoriesActions: MutableList<Action<in RepositoryHandler>> = ArrayList()
   val pomActions: MutableList<Action<in MavenPom>> = ArrayList()
-  val shadowActions: MutableList<Action<in ShadowConfiguration>> = ArrayList()
 
   override fun repositories(configure: Action<in RepositoryHandler>) {
     repositoriesActions += configure
@@ -59,6 +59,6 @@ internal open class DefaultPabloPluginExtension @Inject constructor(
   }
 
   override fun shadow(configure: Action<in ShadowConfiguration>) {
-    shadowActions += configure
+    configure.execute(shadow)
   }
 }

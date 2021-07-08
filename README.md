@@ -62,6 +62,7 @@ pablo {
     secretKeyRingFile = /* A file to load a key ring from, can be set with pablo.signing.secretKeyRingFile property. */
   }
   shadow {
+    enabled = /* Whether or not relocation is enabled, can be set with pablo.shadow.enabled property. */
     // Specify what packages should be relocated and how:
     // - relocate(packageName)
     // - relocate(fromPackageName, toPackageName)

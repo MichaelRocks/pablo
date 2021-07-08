@@ -76,7 +76,8 @@ class PabloPlugin : Plugin<Project> {
 
   private fun createPluginExtension(): DefaultPabloPluginExtension {
     val singingConfiguration = project.objects.newInstance(DefaultSigningConfiguration::class.java, project.objects)
-    val extension = project.objects.newInstance(DefaultPabloPluginExtension::class.java, singingConfiguration, project.objects)
+    val shadowConfiguration = project.objects.newInstance(DefaultShadowConfiguration::class.java, project.objects)
+    val extension = project.objects.newInstance(DefaultPabloPluginExtension::class.java, singingConfiguration, shadowConfiguration, project.objects)
     project.extensions.add(PabloPluginExtension::class.java, "pablo", extension)
     return extension
   }
@@ -108,6 +109,8 @@ class PabloPlugin : Plugin<Project> {
       extension.signing.secretKey.orNull?.also { maybeSetExtra(KEY_SIGNING_SECRET_KEY, it) }
       extension.signing.secretKeyRingFile.orNull?.also { maybeSetExtra(KEY_SIGNING_SECRET_KEY_RING_FILE, it.absolutePath) }
     }
+
+    extension.shadow.enabled.orNull?.also { maybeSetExtra(KEY_SHADOW_ENABLED, it) }
   }
 
   private fun maybeSetExtra(key: String, value: Any?) {
@@ -126,18 +129,19 @@ class PabloPlugin : Plugin<Project> {
 
   private fun configureShadowJar() {
     val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
-    shadowJar.configurations = listOf(
-      project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
-    )
 
-    val shadowConfiguration = project.objects.newInstance(DefaultShadowConfiguration::class.java, shadowJar)
-    extension.shadowActions.forEach { it.execute(shadowConfiguration) }
+    if (shouldRelocateDependencies()) {
+      shadowJar.configurations = listOf(
+        project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
+      )
 
-    addProjectDependenciesToShadowJar(shadowJar, project)
+      addProjectDependenciesToShadowJar(shadowJar, project)
 
-    val filter = shadowJar.dependencyFilter
-    val resolvedDependencies = resolvedDependencies
-    filter.include { resolvedDependencies.shouldBeRelocated(it) }
+      val resolvedDependencies = resolvedDependencies
+      shadowJar.dependencyFilter.include { resolvedDependencies.shouldBeRelocated(it) }
+    } else {
+      shadowJar.dependencyFilter.exclude { true }
+    }
 
     shadowJar.archiveClassifier.set(null as String?)
   }
@@ -288,9 +292,12 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun Node.addDependenciesToPom(resolvedDependencies: DependencyResolver.DependencyResolutionResult) {
+    val isRelocationEnabled = shouldRelocateDependencies()
     resolvedDependencies.scopeToModuleIdMap.forEach { (scope, notations) ->
       if (scope != DependencyResolver.Scope.RELOCATE) {
         notations.forEach { addDependencyNode(it, scope.toMavenScope()) }
+      } else if (!isRelocationEnabled) {
+        notations.forEach { addDependencyNode(it, DependencyResolver.Scope.COMPILE.toMavenScope()) }
       }
     }
   }
@@ -332,16 +339,7 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun shouldSignPublication(): Boolean {
-    if (!project.hasProperty(KEY_SIGNING_ENABLED)) {
-      return true
-    }
-
-    return when (val signingEnabled = project.findProperty(KEY_SIGNING_ENABLED)) {
-      is Boolean -> signingEnabled
-      is Number -> signingEnabled != 0
-      is String -> signingEnabled != "0" && !signingEnabled.equals("false", ignoreCase = true)
-      else -> error("Unexpected value of property $KEY_SIGNING_ENABLED: $signingEnabled")
-    }
+    return getBooleanProperty(KEY_SIGNING_ENABLED, true)
   }
 
   private fun setSigningPropertyFromProjectProperty(key: String) {
@@ -355,6 +353,10 @@ class PabloPlugin : Plugin<Project> {
 
   private fun setSigningProperty(key: String, value: String) {
     project.extensions.extraProperties[key.removePrefix(PREFIX_ROOT)] = value
+  }
+
+  private fun shouldRelocateDependencies(): Boolean {
+    return getBooleanProperty(KEY_SHADOW_ENABLED, true)
   }
 
   private fun Property<String>.maybeSetFromProjectProperty(name: String) {
@@ -376,6 +378,19 @@ class PabloPlugin : Plugin<Project> {
     action(value)
   }
 
+  private fun getBooleanProperty(key: String, defaultValue: Boolean = false): Boolean {
+    if (!project.hasProperty(key)) {
+      return defaultValue
+    }
+
+    return when (val value = project.findProperty(key)) {
+      is Boolean -> value
+      is Number -> value != 0
+      is String -> value != "0" && !value.equals("false", ignoreCase = true)
+      else -> error("Unexpected value of property $key: $value")
+    }
+  }
+
   companion object {
     private const val PREFIX_ROOT = "pablo."
 
@@ -384,6 +399,8 @@ class PabloPlugin : Plugin<Project> {
     private const val KEY_SIGNING_PASSWORD = "pablo.signing.password"
     private const val KEY_SIGNING_SECRET_KEY = "pablo.signing.secretKey"
     private const val KEY_SIGNING_SECRET_KEY_RING_FILE = "pablo.signing.secretKeyRingFile"
+
+    private const val KEY_SHADOW_ENABLED = "pablo.shadow.enabled"
 
     private const val PUBLICATION_NAME = "maven"
 

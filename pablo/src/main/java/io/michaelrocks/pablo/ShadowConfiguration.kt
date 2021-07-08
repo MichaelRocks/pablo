@@ -16,23 +16,38 @@
 
 package io.michaelrocks.pablo
 
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.Property
 import javax.inject.Inject
 
 interface ShadowConfiguration {
+  val enabled: Property<Boolean>
+
   fun relocate(destination: String)
   fun relocate(pattern: String, destination: String)
 }
 
+internal interface InternalShadowConfiguration : ShadowConfiguration {
+  val relocations: List<Relocation>
+
+  data class Relocation(
+    val pattern: String,
+    val destination: String,
+  )
+}
+
 internal open class DefaultShadowConfiguration @Inject constructor(
-  private val shadowJar: ShadowJar
-) : ShadowConfiguration {
+  objectFactory: ObjectFactory,
+) : InternalShadowConfiguration {
+
+  override val enabled: Property<Boolean> = objectFactory.property(Boolean::class.java)
+  override val relocations = mutableListOf<InternalShadowConfiguration.Relocation>()
 
   override fun relocate(destination: String) {
     relocate(destination, destination)
   }
 
   override fun relocate(pattern: String, destination: String) {
-    shadowJar.relocate(pattern, destination)
+    relocations += InternalShadowConfiguration.Relocation(pattern, destination)
   }
 }

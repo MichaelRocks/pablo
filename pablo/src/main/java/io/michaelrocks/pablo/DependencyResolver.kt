@@ -28,7 +28,8 @@ import org.gradle.api.artifacts.SelfResolvingDependency
 import org.gradle.api.plugins.JavaPlugin
 
 internal class DependencyResolver private constructor(
-  private val project: Project
+  private val project: Project,
+  private val isRelocationEnabled: Boolean,
 ) {
 
   private val mapping = buildModuleIdMapping()
@@ -58,7 +59,9 @@ internal class DependencyResolver private constructor(
 
   private fun resolve(): DependencyResolutionResult {
     resolve(project)
-    relocateTransitively(project)
+    if (isRelocationEnabled) {
+      relocateTransitively(project)
+    }
     return builder.build()
   }
 
@@ -70,7 +73,7 @@ internal class DependencyResolver private constructor(
         configuration.dependencyConstraints.forEach { resolve(it, scope) }
       }
 
-      if (scope == Scope.RELOCATE) {
+      if (scope == Scope.RELOCATE && isRelocationEnabled) {
         configuration.resolvedConfiguration
           .getFirstLevelModuleDependencies() { it !is SelfResolvingDependency }
           .forEach { resolvedDependency ->
@@ -94,7 +97,7 @@ internal class DependencyResolver private constructor(
         }
 
         builder.addModuleId(scope, projectId)
-        if (scope == Scope.RELOCATE) {
+        if (scope == Scope.RELOCATE && isRelocationEnabled) {
           resolve(dependencyProject)
         }
       }
@@ -294,8 +297,8 @@ internal class DependencyResolver private constructor(
   }
 
   companion object {
-    fun resolve(project: Project): DependencyResolutionResult {
-      return DependencyResolver(project).resolve()
+    fun resolve(project: Project, isRelocationEnabled: Boolean = true): DependencyResolutionResult {
+      return DependencyResolver(project, isRelocationEnabled).resolve()
     }
   }
 }
