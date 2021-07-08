@@ -1,8 +1,8 @@
 buildscript {
   ext.javaVersion = JavaVersion.VERSION_1_8
-  ext.kotlinVersion = '1.4.31'
-  ext.shadowVersion = '6.1.0'
-  ext.mavenVersion = '3.6.3'
+  ext.kotlinVersion = '1.5.20'
+  ext.shadowVersion = '7.0.0'
+  ext.mavenVersion = '3.8.1'
 
   repositories {
     mavenCentral()
@@ -64,11 +64,10 @@ repositories {
 dependencies {
   compileOnly gradleApi()
 
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
   implementation "org.apache.maven:maven-artifact:$mavenVersion"
 
   final String shadowConfigurationName = isBootstrap ? 'implementation' : 'relocate';
-  add(shadowConfigurationName, "com.github.jengelman.gradle.plugins:shadow:$shadowVersion") {
+  add(shadowConfigurationName, "gradle.plugin.com.github.jengelman.gradle.plugins:shadow:$shadowVersion") {
     // The shadow plugin contains dependencies in pom.xml, however they're bundled into the fatjar and not needed.
     transitive false
   }
