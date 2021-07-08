@@ -27,7 +27,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.invocation.Gradle
 import org.gradle.api.logging.Logger
 import org.gradle.api.plugins.JavaPlugin
-import org.gradle.api.plugins.JavaPluginConvention
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.Property
 import org.gradle.api.publish.Publication
 import org.gradle.api.publish.PublishingExtension
@@ -142,8 +142,8 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun addProjectDependenciesToShadowJar(shadowJar: ShadowJar, project: Project) {
-    val convention = project.convention.getPlugin(JavaPluginConvention::class.java)
-    shadowJar.from(convention.sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).output)
+    val javaExtension = project.extensions.getByType(JavaPluginExtension::class.java)
+    shadowJar.from(javaExtension.sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).output)
 
     val relocateConfiguration = project.configurations.findByName(RELOCATE_CONFIGURATION_NAME) ?: return
     relocateConfiguration.allDependencies.forEach { dependency ->
@@ -159,7 +159,7 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun configureArtifacts() {
-    val sourceSets = project.convention.getPlugin(JavaPluginConvention::class.java).sourceSets
+    val sourceSets = project.extensions.getByType(JavaPluginExtension::class.java).sourceSets
 
     val sourcesJar = project.tasks.create(SOURCES_JAR_TASK_NAME, Jar::class.java) { task ->
       task.dependsOn(project.tasks.getByName(JavaPlugin.CLASSES_TASK_NAME))
