@@ -15,7 +15,7 @@ buildscript {
   }
 
   dependencies {
-    classpath 'io.michaelrocks:pablo:pablo:1.2.0'
+    classpath 'io.michaelrocks:pablo:pablo:1.3.0'
   }
 }
 
