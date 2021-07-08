@@ -64,6 +64,7 @@ repositories {
 dependencies {
   compileOnly gradleApi()
 
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
   implementation "org.apache.maven:maven-artifact:$mavenVersion"
 
   final String shadowConfigurationName = isBootstrap ? 'implementation' : 'relocate';
