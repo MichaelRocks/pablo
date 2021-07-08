@@ -33,6 +33,7 @@ import org.gradle.api.publish.Publication
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.SourceSet
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.plugins.signing.SigningExtension
@@ -141,14 +142,16 @@ class PabloPlugin : Plugin<Project> {
     shadowJar.archiveClassifier.set(null as String?)
   }
 
-  private fun addProjectDependenciesToShadowJar(shadowJar: ShadowJar, project: Project) {
+  private fun addProjectDependenciesToShadowJar(shadowJar: AbstractArchiveTask, project: Project) {
     val javaExtension = project.extensions.getByType(JavaPluginExtension::class.java)
     shadowJar.from(javaExtension.sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).output)
 
     val relocateConfiguration = project.configurations.findByName(RELOCATE_CONFIGURATION_NAME) ?: return
     relocateConfiguration.allDependencies.forEach { dependency ->
       if (dependency is ProjectDependency) {
-        val projectShadowJar = dependency.dependencyProject.tasks.findByName(SHADOW_JAR_TASK_NAME) as ShadowJar?
+        // The task shouldn't be casted to ShadowJar since the instance of the plugin in another project might be loaded
+        // with a different ClassLoader and casting will throw a ClassCastException.
+        val projectShadowJar = dependency.dependencyProject.tasks.findByName(SHADOW_JAR_TASK_NAME) as AbstractArchiveTask?
         if (projectShadowJar != null) {
           shadowJar.from(projectShadowJar.archiveFile)
         } else {
