@@ -135,6 +135,10 @@ class PabloPlugin : Plugin<Project> {
         project.configurations.getByName(RELOCATE_CONFIGURATION_NAME)
       )
 
+      extension.shadow.relocations.forEach { relocation ->
+        shadowJar.relocate(relocation.pattern, relocation.destination)
+      }
+
       addProjectDependenciesToShadowJar(shadowJar, project)
 
       val resolvedDependencies = resolvedDependencies
