@@ -21,7 +21,6 @@ import groovy.util.Node
 import org.gradle.BuildAdapter
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.invocation.Gradle
@@ -34,8 +33,6 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
-import org.gradle.api.tasks.bundling.Jar
-import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.plugins.signing.SigningExtension
 import java.util.Properties
 
@@ -173,23 +170,9 @@ class PabloPlugin : Plugin<Project> {
   }
 
   private fun configureArtifacts() {
-    val sourceSets = project.extensions.getByType(JavaPluginExtension::class.java).sourceSets
-
-    val sourcesJar = project.tasks.create(SOURCES_JAR_TASK_NAME, Jar::class.java) { task ->
-      task.dependsOn(project.tasks.getByName(JavaPlugin.CLASSES_TASK_NAME))
-      task.from(sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).allSource)
-      task.archiveClassifier.set(SOURCES_CLASSIFIER)
-    }
-
-    val javadocJar = project.tasks.create(JAVADOC_JAR_TASK_NAME, Jar::class.java) { task ->
-      val javadoc = project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME) as Javadoc
-      task.dependsOn(javadoc)
-      task.from(javadoc.destinationDir)
-      task.archiveClassifier.set(JAVADOC_CLASSIFIER)
-    }
-
-    project.artifacts.add(Dependency.ARCHIVES_CONFIGURATION, sourcesJar)
-    project.artifacts.add(Dependency.ARCHIVES_CONFIGURATION, javadocJar)
+    val javaExtension = project.extensions.getByType(JavaPluginExtension::class.java)
+    javaExtension.withSourcesJar()
+    javaExtension.withJavadocJar()
   }
 
   private fun configurePublication() {
