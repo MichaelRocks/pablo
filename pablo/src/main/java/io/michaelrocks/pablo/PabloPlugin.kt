@@ -164,7 +164,7 @@ class PabloPlugin : Plugin<Project> {
         // with a different ClassLoader and casting will throw a ClassCastException.
         val projectShadowJar = dependency.dependencyProject.tasks.findByName(SHADOW_JAR_TASK_NAME) as AbstractArchiveTask?
         if (projectShadowJar != null) {
-          shadowJar.from(projectShadowJar.archiveFile)
+          shadowJar.from(projectShadowJar)
         } else {
           addProjectDependenciesToShadowJar(shadowJar, dependency.dependencyProject)
         }
