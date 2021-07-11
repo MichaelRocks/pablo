@@ -129,6 +129,9 @@ class PabloPlugin : Plugin<Project> {
 
   private fun configureShadowJar() {
     val shadowJar = project.tasks.getByName(SHADOW_JAR_TASK_NAME) as ShadowJar
+    project.tasks.findByName(JavaPlugin.JAR_TASK_NAME)?.also {
+      shadowJar.dependsOn(it)
+    }
 
     if (shouldRelocateDependencies()) {
       shadowJar.configurations = listOf(
